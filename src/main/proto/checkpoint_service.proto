@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+option java_package = "nl.nfi.djpcfg.guess.cache.distributed";
+
+enum Response {
+  OK = 0;
+  NOT_FOUND = 1;
+  ALREADY_EXISTS = 2;
+  IN_USE = 3;
+}
+
+message CheckpointMetadata {
+  string grammarUuid = 1;
+  int64 keyspaceOffset = 2;
+}
+
+// TODO: look into using headers for request metadata (except for checkpoint metadata)
+message RequestMetadata {
+  string senderName = 1;
+  CheckpointMetadata checkpointMetadata = 2;
+}
+
+message Chunk {
+  bytes data = 1;
+}
+
+message CheckpointPart {
+  oneof part {
+    RequestMetadata metadata = 1;
+    Response response = 2;
+    Chunk chunk = 3;
+  }
+}
+
+message StorageResponse {
+  Response response = 1;
+}
+
+service CheckpointService {
+
+  // first server stream message is response, second metadata, rest are chunks
+  // flow:
+  //    - client -> server: CheckpointMetadata
+  //    - server -> client: CheckpointPart<Response>
+  //      optionally:
+  //    - server -> client: CheckpointPart<RequestMetadata>
+  //    - server -> client: CheckpointPart<Chunk>[]
+  rpc getCheckpoint(RequestMetadata) returns (stream CheckpointPart) {}
+
+  // first client stream message is metadata, rest are chunks
+  // flow:
+  //    - client -> server: CheckpointPart<RequestMetadata>
+  //    - server -> client: StorageResponse
+  //      optionally:
+  //    - client -> server: CheckpointPart<Chunk>[]
+  rpc storeCheckpoint(stream CheckpointPart) returns (stream StorageResponse) {}
+}
