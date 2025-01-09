@@ -26,7 +26,7 @@ only the passwords in that range. In order for the guesser not having to skip al
 it receives a new chunk, it can cache the end state of a run after finishing a chunk. Next time, it can load this
 state and use it as a starting point, which will most likely be closer to the start of the new chunk. Ideally,
 this state should be shared between nodes, so that new nodes which get assigned to a task in a later point in time,
-can also make use of this cached information. Currently, this is possible if the nodes have access to a shared filesystem, see later on.
+can also make use of this cached information. See later on for more information.
 
 Requirements
 -
