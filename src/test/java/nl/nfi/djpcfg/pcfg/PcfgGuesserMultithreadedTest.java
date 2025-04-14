@@ -396,7 +396,6 @@ class PcfgGuesserMultithreadedTest {
         final String rulePath = "rules/Default.pbm";
         final long skip = 1234567;
         final long limit = 12345678;
-        System.setProperty("LOG_DIRECTORY_PATH", "testlogs");
 
         final PcfgGuesser guesser = PcfgGuesser.forRule(TEST_RESOURCES_PATH.resolve(rulePath));
 
