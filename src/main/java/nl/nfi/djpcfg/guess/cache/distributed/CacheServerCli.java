@@ -8,7 +8,9 @@ import java.util.concurrent.Callable;
 
 import static java.lang.Runtime.getRuntime;
 import static java.util.concurrent.Executors.newFixedThreadPool;
-import static picocli.CommandLine.*;
+import static picocli.CommandLine.Command;
+import static picocli.CommandLine.ExitCode;
+import static picocli.CommandLine.Option;
 
 @Command(name = "pcfg_cache_server")
 public class CacheServerCli implements Callable<Integer> {

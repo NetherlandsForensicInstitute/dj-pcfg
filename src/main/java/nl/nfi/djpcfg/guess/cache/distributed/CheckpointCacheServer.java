@@ -6,7 +6,12 @@ import io.grpc.stub.StreamObserver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.*;
+import java.io.BufferedOutputStream;
+import java.io.Closeable;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.Set;
 import java.util.UUID;
@@ -19,11 +24,20 @@ import static java.nio.file.Files.exists;
 import static java.util.Collections.newSetFromMap;
 import static java.util.concurrent.Executors.newFixedThreadPool;
 import static java.util.concurrent.TimeUnit.MINUTES;
-import static nl.nfi.djpcfg.guess.cache.distributed.CheckpointServiceOuterClass.*;
-import static nl.nfi.djpcfg.guess.cache.distributed.CheckpointServiceOuterClass.Response.*;
+import static nl.nfi.djpcfg.guess.cache.distributed.CheckpointServiceOuterClass.CheckpointMetadata;
+import static nl.nfi.djpcfg.guess.cache.distributed.CheckpointServiceOuterClass.CheckpointRequest;
+import static nl.nfi.djpcfg.guess.cache.distributed.CheckpointServiceOuterClass.Response.ALREADY_EXISTS;
+import static nl.nfi.djpcfg.guess.cache.distributed.CheckpointServiceOuterClass.Response.IN_USE;
+import static nl.nfi.djpcfg.guess.cache.distributed.CheckpointServiceOuterClass.Response.NOT_FOUND;
+import static nl.nfi.djpcfg.guess.cache.distributed.CheckpointServiceOuterClass.Response.OK;
+import static nl.nfi.djpcfg.guess.cache.distributed.CheckpointServiceOuterClass.StorageResponse;
+import static nl.nfi.djpcfg.guess.cache.distributed.CheckpointServiceOuterClass.StreamMessage;
 import static nl.nfi.djpcfg.guess.cache.distributed.Config.CHUNK_SIZE;
 import static nl.nfi.djpcfg.guess.cache.distributed.Config.MAX_MESSAGE_SIZE;
-import static nl.nfi.djpcfg.guess.cache.distributed.MessageFactory.*;
+import static nl.nfi.djpcfg.guess.cache.distributed.MessageFactory.chunkMessage;
+import static nl.nfi.djpcfg.guess.cache.distributed.MessageFactory.metadataMessage;
+import static nl.nfi.djpcfg.guess.cache.distributed.MessageFactory.response;
+import static nl.nfi.djpcfg.guess.cache.distributed.MessageFactory.responseMessage;
 import static nl.nfi.djpcfg.guess.cache.distributed.UnsafeByteStringOperations.getBytes;
 
 public final class CheckpointCacheServer implements Closeable {

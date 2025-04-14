@@ -1,9 +1,11 @@
 package nl.nfi.djpcfg.serialize;
 
-import static java.util.Comparator.comparing;
-
-import static nl.nfi.djpcfg.serialize.CheckpointCodec.Decoder;
-import static nl.nfi.djpcfg.serialize.CheckpointCodec.Encoder;
+import nl.nfi.djpcfg.guess.cache.Checkpoint;
+import nl.nfi.djpcfg.guess.pcfg.HeapPressureLimitingPriorityQueue;
+import nl.nfi.djpcfg.guess.pcfg.ParseTree;
+import nl.nfi.djpcfg.guess.pcfg.Pcfg;
+import nl.nfi.djpcfg.guess.pcfg.ReplacementSet;
+import nl.nfi.djpcfg.guess.pcfg.grammar.BaseStructure;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -19,12 +21,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
 
-import nl.nfi.djpcfg.guess.pcfg.HeapPressureLimitingPriorityQueue;
-import nl.nfi.djpcfg.guess.cache.Checkpoint;
-import nl.nfi.djpcfg.guess.pcfg.ParseTree;
-import nl.nfi.djpcfg.guess.pcfg.Pcfg;
-import nl.nfi.djpcfg.guess.pcfg.ReplacementSet;
-import nl.nfi.djpcfg.guess.pcfg.grammar.BaseStructure;
+import static java.util.Comparator.comparing;
+import static nl.nfi.djpcfg.serialize.CheckpointCodec.Decoder;
+import static nl.nfi.djpcfg.serialize.CheckpointCodec.Encoder;
 
 public abstract sealed class CheckpointCodec implements Closeable permits Encoder, Decoder {
 

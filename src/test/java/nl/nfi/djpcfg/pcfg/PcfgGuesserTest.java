@@ -14,7 +14,11 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 
-import static nl.nfi.djpcfg.Utils.*;
+import static nl.nfi.djpcfg.Utils.ScoredEntry;
+import static nl.nfi.djpcfg.Utils.calculateKeyspace;
+import static nl.nfi.djpcfg.Utils.generate;
+import static nl.nfi.djpcfg.Utils.generateWithPython;
+import static nl.nfi.djpcfg.Utils.scoreWithPython;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class PcfgGuesserTest {

@@ -5,7 +5,12 @@ import nl.nfi.djpcfg.guess.pcfg.ReplacementSet;
 import nl.nfi.djpcfg.guess.pcfg.grammar.BaseStructure;
 import nl.nfi.djpcfg.guess.pcfg.grammar.TerminalGroup;
 
-import java.util.*;
+import java.util.ArrayDeque;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Queue;
+import java.util.Random;
 import java.util.function.Function;
 import java.util.function.IntToDoubleFunction;
 import java.util.function.ToDoubleFunction;

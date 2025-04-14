@@ -5,7 +5,12 @@ import nl.nfi.djpcfg.guess.pcfg.RuleInfo;
 import nl.nfi.djpcfg.guess.pcfg.grammar.BaseStructure;
 import nl.nfi.djpcfg.guess.pcfg.grammar.Grammar;
 
-import java.io.*;
+import java.io.BufferedInputStream;
+import java.io.Closeable;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.nio.file.Paths;

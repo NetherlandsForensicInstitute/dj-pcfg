@@ -5,7 +5,6 @@ import nl.nfi.djpcfg.guess.cache.directory.DirectoryCheckpointCache;
 import nl.nfi.djpcfg.guess.cache.distributed.CheckpointCacheClient;
 import nl.nfi.djpcfg.guess.pcfg.PcfgGuesser;
 import nl.nfi.djpcfg.guess.pcfg.generate.Mode;
-
 import org.slf4j.LoggerFactory;
 
 import java.io.BufferedOutputStream;
@@ -14,7 +13,9 @@ import java.io.PrintStream;
 import java.nio.file.Paths;
 import java.util.concurrent.Callable;
 
-import static picocli.CommandLine.*;
+import static picocli.CommandLine.Command;
+import static picocli.CommandLine.ExitCode;
+import static picocli.CommandLine.Option;
 
 @Command(name = "pcfg_guesser")
 public class PcfgGuesserCli implements Callable<Integer> {

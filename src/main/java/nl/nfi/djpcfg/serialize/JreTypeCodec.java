@@ -1,10 +1,5 @@
 package nl.nfi.djpcfg.serialize;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
-
-import static nl.nfi.djpcfg.serialize.JreTypeCodec.Decoder;
-import static nl.nfi.djpcfg.serialize.JreTypeCodec.Encoder;
-
 import java.io.Closeable;
 import java.io.EOFException;
 import java.io.IOException;
@@ -18,6 +13,10 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Queue;
 import java.util.function.Function;
+
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static nl.nfi.djpcfg.serialize.JreTypeCodec.Decoder;
+import static nl.nfi.djpcfg.serialize.JreTypeCodec.Encoder;
 
 public abstract sealed class JreTypeCodec implements Closeable permits Encoder, Decoder {
 

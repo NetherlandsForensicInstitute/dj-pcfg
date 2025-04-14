@@ -1,6 +1,5 @@
 package nl.nfi.djpcfg.pcfg;
 
-import nl.nfi.djpcfg.common.Timers;
 import nl.nfi.djpcfg.common.Timers.TimedResult;
 import nl.nfi.djpcfg.guess.pcfg.Pcfg;
 import nl.nfi.djpcfg.guess.pcfg.PcfgGuesser;

@@ -3,9 +3,22 @@ package nl.nfi.djpcfg.serialize;
 import nl.nfi.djpcfg.guess.cache.CacheIndex;
 import nl.nfi.djpcfg.guess.cache.LRUEntry;
 
-import java.io.*;
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.Closeable;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 
 import static nl.nfi.djpcfg.serialize.CacheIndexCodec.Decoder;
 import static nl.nfi.djpcfg.serialize.CacheIndexCodec.Encoder;

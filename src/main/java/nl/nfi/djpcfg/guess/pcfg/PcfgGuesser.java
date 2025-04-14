@@ -1,17 +1,5 @@
 package nl.nfi.djpcfg.guess.pcfg;
 
-import static nl.nfi.djpcfg.guess.pcfg.generate.Mode.RANDOM_WALK;
-import static nl.nfi.djpcfg.guess.pcfg.generate.Mode.TRUE_PROB_ORDER;
-
-import java.io.IOException;
-import java.io.PrintStream;
-import java.io.UncheckedIOException;
-import java.math.BigInteger;
-import java.nio.file.Path;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import nl.nfi.djpcfg.guess.cache.Checkpoint;
 import nl.nfi.djpcfg.guess.cache.CheckpointCache;
 import nl.nfi.djpcfg.guess.pcfg.generate.Mode;
@@ -20,6 +8,17 @@ import nl.nfi.djpcfg.guess.pcfg.generate.RandomWalk;
 import nl.nfi.djpcfg.guess.pcfg.generate.ThreadedRandomWalk;
 import nl.nfi.djpcfg.guess.pcfg.generate.ThreadedTrueProbOrder;
 import nl.nfi.djpcfg.guess.pcfg.generate.TrueProbOrder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.io.PrintStream;
+import java.io.UncheckedIOException;
+import java.math.BigInteger;
+import java.nio.file.Path;
+
+import static nl.nfi.djpcfg.guess.pcfg.generate.Mode.RANDOM_WALK;
+import static nl.nfi.djpcfg.guess.pcfg.generate.Mode.TRUE_PROB_ORDER;
 
 public final class PcfgGuesser {
 

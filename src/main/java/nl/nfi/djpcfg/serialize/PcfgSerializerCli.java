@@ -8,7 +8,9 @@ import java.io.OutputStream;
 import java.nio.file.Paths;
 import java.util.concurrent.Callable;
 
-import static picocli.CommandLine.*;
+import static picocli.CommandLine.Command;
+import static picocli.CommandLine.ExitCode;
+import static picocli.CommandLine.Option;
 
 @Command(name = "pcfg_serializer")
 public class PcfgSerializerCli implements Callable<Integer> {

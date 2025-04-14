@@ -4,16 +4,17 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.management.NotificationEmitter;
-import java.lang.management.*;
-import java.text.CharacterIterator;
-import java.text.StringCharacterIterator;
+import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryMXBean;
+import java.lang.management.MemoryNotificationInfo;
+import java.lang.management.MemoryPoolMXBean;
+import java.lang.management.MemoryType;
+import java.lang.management.MemoryUsage;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.PriorityQueue;
 
-import static java.lang.Long.signum;
-import static java.lang.Math.abs;
 import static nl.nfi.djpcfg.common.Formatting.toHumanReadableSize;
 
 // TODO: hack

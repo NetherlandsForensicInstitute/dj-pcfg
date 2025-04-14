@@ -1,16 +1,16 @@
 package nl.nfi.djpcfg.debug;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.Arrays;
-
 import nl.nfi.djpcfg.guess.cache.Checkpoint;
 import nl.nfi.djpcfg.guess.pcfg.ParseTree;
 import nl.nfi.djpcfg.guess.pcfg.Pcfg;
 import nl.nfi.djpcfg.serialize.CheckpointCodec;
 import nl.nfi.djpcfg.serialize.PcfgCodec;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Arrays;
 
 public final class PrintCheckpointMetadata {
 

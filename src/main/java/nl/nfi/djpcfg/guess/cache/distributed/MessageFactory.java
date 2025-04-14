@@ -4,11 +4,11 @@ import java.util.UUID;
 
 import static com.google.protobuf.UnsafeByteOperations.unsafeWrap;
 import static nl.nfi.djpcfg.guess.cache.distributed.CheckpointServiceOuterClass.CheckpointMetadata;
-import static nl.nfi.djpcfg.guess.cache.distributed.CheckpointServiceOuterClass.StreamMessage;
-import static nl.nfi.djpcfg.guess.cache.distributed.CheckpointServiceOuterClass.Chunk;
 import static nl.nfi.djpcfg.guess.cache.distributed.CheckpointServiceOuterClass.CheckpointRequest;
+import static nl.nfi.djpcfg.guess.cache.distributed.CheckpointServiceOuterClass.Chunk;
 import static nl.nfi.djpcfg.guess.cache.distributed.CheckpointServiceOuterClass.Response;
 import static nl.nfi.djpcfg.guess.cache.distributed.CheckpointServiceOuterClass.StorageResponse;
+import static nl.nfi.djpcfg.guess.cache.distributed.CheckpointServiceOuterClass.StreamMessage;
 
 public final class MessageFactory {
 

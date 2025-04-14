@@ -11,7 +11,14 @@ import nl.nfi.djpcfg.serialize.CheckpointCodec;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.*;
+import java.io.BufferedOutputStream;
+import java.io.ByteArrayInputStream;
+import java.io.Closeable;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.SequenceInputStream;
+import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.util.Iterator;
 import java.util.Optional;
@@ -25,12 +32,21 @@ import static java.util.concurrent.TimeUnit.MINUTES;
 import static nl.nfi.djpcfg.common.HostUtils.hostname;
 import static nl.nfi.djpcfg.common.HostUtils.pid;
 import static nl.nfi.djpcfg.common.Timers.time;
-import static nl.nfi.djpcfg.guess.cache.distributed.CheckpointServiceGrpc.*;
-import static nl.nfi.djpcfg.guess.cache.distributed.CheckpointServiceOuterClass.*;
+import static nl.nfi.djpcfg.guess.cache.distributed.CheckpointServiceGrpc.CheckpointServiceBlockingStub;
+import static nl.nfi.djpcfg.guess.cache.distributed.CheckpointServiceGrpc.CheckpointServiceStub;
+import static nl.nfi.djpcfg.guess.cache.distributed.CheckpointServiceGrpc.newBlockingStub;
+import static nl.nfi.djpcfg.guess.cache.distributed.CheckpointServiceGrpc.newStub;
+import static nl.nfi.djpcfg.guess.cache.distributed.CheckpointServiceOuterClass.CheckpointMetadata;
+import static nl.nfi.djpcfg.guess.cache.distributed.CheckpointServiceOuterClass.CheckpointRequest;
+import static nl.nfi.djpcfg.guess.cache.distributed.CheckpointServiceOuterClass.Response;
 import static nl.nfi.djpcfg.guess.cache.distributed.CheckpointServiceOuterClass.Response.OK;
+import static nl.nfi.djpcfg.guess.cache.distributed.CheckpointServiceOuterClass.StorageResponse;
+import static nl.nfi.djpcfg.guess.cache.distributed.CheckpointServiceOuterClass.StreamMessage;
 import static nl.nfi.djpcfg.guess.cache.distributed.Config.CHUNK_SIZE;
 import static nl.nfi.djpcfg.guess.cache.distributed.Config.MAX_MESSAGE_SIZE;
-import static nl.nfi.djpcfg.guess.cache.distributed.MessageFactory.*;
+import static nl.nfi.djpcfg.guess.cache.distributed.MessageFactory.chunkMessage;
+import static nl.nfi.djpcfg.guess.cache.distributed.MessageFactory.metadataMessage;
+import static nl.nfi.djpcfg.guess.cache.distributed.MessageFactory.request;
 
 public final class CheckpointCacheClient implements Closeable, CheckpointCache {
 

@@ -1,6 +1,5 @@
 package nl.nfi.djpcfg.guess.cache.distributed;
 
-import nl.nfi.djpcfg.common.Timers;
 import nl.nfi.djpcfg.common.Timers.TimedResult;
 import nl.nfi.djpcfg.guess.cache.CacheIndex;
 import nl.nfi.djpcfg.guess.cache.Checkpoint;
@@ -40,7 +39,6 @@ import static java.nio.file.Files.list;
 import static java.util.Collections.emptyList;
 import static java.util.Map.entry;
 import static java.util.stream.Collectors.joining;
-import static java.util.stream.LongStream.of;
 import static java.util.stream.LongStream.range;
 import static nl.nfi.djpcfg.common.Timers.time;
 import static org.assertj.core.api.Assertions.assertThat;
