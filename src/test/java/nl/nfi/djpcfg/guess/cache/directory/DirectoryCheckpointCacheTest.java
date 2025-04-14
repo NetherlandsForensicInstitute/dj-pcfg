@@ -134,7 +134,7 @@ class DirectoryCheckpointCacheTest {
         final Checkpoint state = new Checkpoint(queue, next, 0);
 
         final ByteArrayOutputStream out = new ByteArrayOutputStream();
-        CheckpointCodec.forOutput(out).writeCacheUsingBaseRefs(pcfg, state);
+        CheckpointCodec.forOutput(out).writeCheckpointUsingBaseRefs(pcfg, state);
         return out.size();
     }
 }

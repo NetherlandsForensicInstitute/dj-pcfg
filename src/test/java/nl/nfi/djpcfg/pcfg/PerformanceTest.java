@@ -1,5 +1,7 @@
 package nl.nfi.djpcfg.pcfg;
 
+import nl.nfi.djpcfg.common.Timers;
+import nl.nfi.djpcfg.common.Timers.TimedResult;
 import nl.nfi.djpcfg.guess.pcfg.Pcfg;
 import nl.nfi.djpcfg.guess.pcfg.PcfgGuesser;
 import nl.nfi.djpcfg.guess.pcfg.generate.PasswordGenerator;
@@ -14,8 +16,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 
-import static nl.nfi.djpcfg.Utils.TimedResult;
-import static nl.nfi.djpcfg.Utils.time;
+import static nl.nfi.djpcfg.common.Timers.time;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class PerformanceTest {

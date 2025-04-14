@@ -1,4 +1,4 @@
-package nl.nfi.djpcfg.guess;
+package nl.nfi.djpcfg.guess.pcfg;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,6 +14,7 @@ import java.util.PriorityQueue;
 
 import static java.lang.Long.signum;
 import static java.lang.Math.abs;
+import static nl.nfi.djpcfg.common.Formatting.toHumanReadableSize;
 
 // TODO: hack
 public final class HeapPressureLimitingPriorityQueue<T> extends PriorityQueue<T> {
@@ -82,20 +83,5 @@ public final class HeapPressureLimitingPriorityQueue<T> extends PriorityQueue<T>
             thresholdReached = false;
         }
         return super.offer(element);
-    }
-
-    private static String toHumanReadableSize(final long size) {
-        final long absB = size == Long.MIN_VALUE ? Long.MAX_VALUE : abs(size);
-        if (absB < 1024) {
-            return size + " B";
-        }
-        long value = absB;
-        final CharacterIterator ci = new StringCharacterIterator("KMGTPE");
-        for (int i = 40; i >= 0 && absB > 0xfffccccccccccccL >> i; i -= 10) {
-            value >>= 10;
-            ci.next();
-        }
-        value *= signum(size);
-        return String.format("%.1f%ciB", value / 1024.0, ci.current());
     }
 }

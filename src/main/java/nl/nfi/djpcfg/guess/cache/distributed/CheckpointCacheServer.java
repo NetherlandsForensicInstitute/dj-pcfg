@@ -85,7 +85,7 @@ public final class CheckpointCacheServer implements Closeable {
         }
 
         @Override
-        public StreamObserver<CheckpointPart> storeCheckpoint(final StreamObserver<StorageResponse> responseObserver) {
+        public StreamObserver<StreamMessage> storeCheckpoint(final StreamObserver<StorageResponse> responseObserver) {
             return new StreamObserver<>() {
 
                 private volatile String clientName;
@@ -94,14 +94,14 @@ public final class CheckpointCacheServer implements Closeable {
                 private volatile OutputStream checkpointOutput;
 
                 @Override
-                public void onNext(final CheckpointPart part) {
-                    if (part.hasMetadata()) {
-                        final RequestMetadata metadata = part.getMetadata();
-                        clientName = metadata.getSenderName();
+                public void onNext(final StreamMessage message) {
+                    if (message.hasRequest()) {
+                        final CheckpointRequest request = message.getRequest();
+                        clientName = request.getSenderName();
 
-                        final CheckpointMetadata checkpointMetadata = metadata.getCheckpointMetadata();
-                        final UUID grammmarUuid = UUID.fromString(checkpointMetadata.getGrammarUuid());
-                        final long keyspaceOffset = checkpointMetadata.getKeyspaceOffset();
+                        final CheckpointMetadata metadata = request.getCheckpointMetadata();
+                        final UUID grammmarUuid = UUID.fromString(metadata.getGrammarUuid());
+                        final long keyspaceOffset = metadata.getKeyspaceOffset();
 
                         final String key = "%s_%d".formatted(grammmarUuid, keyspaceOffset);
 
@@ -139,7 +139,7 @@ public final class CheckpointCacheServer implements Closeable {
                         try {
                             // write next chunk to checkpoint file
                             LOG.debug("Received chunk from {}", clientName);
-                            checkpointOutput.write(getBytes(part.getChunk().getData()));
+                            checkpointOutput.write(getBytes(message.getChunk().getData()));
                         } catch (final IOException e) {
                             // TODO: is this necessary?
                             checkpointsBeingProcessed.remove(checkpointKey);
@@ -150,7 +150,7 @@ public final class CheckpointCacheServer implements Closeable {
 
                 @Override
                 public void onError(final Throwable t) {
-                    LOG.warn("Error while receiving checkpoint data", t);
+                    LOG.warn("Error while receiving checkpoint data from client: {}", clientName, t);
                     try {
                         if (checkpointOutput != null) {
                             checkpointOutput.close();
@@ -184,23 +184,23 @@ public final class CheckpointCacheServer implements Closeable {
         }
 
         @Override
-        public void getCheckpoint(final RequestMetadata request, final StreamObserver<CheckpointPart> responseObserver) {
+        public void getCheckpoint(final CheckpointRequest request, final StreamObserver<StreamMessage> responseObserver) {
             try {
-                final CheckpointMetadata checkpointMetadata = request.getCheckpointMetadata();
+                final CheckpointMetadata metadata = request.getCheckpointMetadata();
 
-                final UUID grammarUuid = UUID.fromString(checkpointMetadata.getGrammarUuid());
-                final long keyspaceOffset = checkpointMetadata.getKeyspaceOffset();
+                final UUID grammarUuid = UUID.fromString(metadata.getGrammarUuid());
+                final long keyspaceOffset = metadata.getKeyspaceOffset();
 
                 // search for checkpoint, if so, execute the callback, streaming the data to the client
                 final boolean foundCheckpoint = cache.getFurthestBefore(grammarUuid, keyspaceOffset, (uuid, closestStatePosition, stateInput) -> {
                     try {
-                        responseObserver.onNext(responsePart(OK));
-                        responseObserver.onNext(metadataPart(uuid, closestStatePosition));
+                        responseObserver.onNext(responseMessage(OK));
+                        responseObserver.onNext(metadataMessage(uuid, closestStatePosition));
                         final byte[] chunk = new byte[CHUNK_SIZE];
                         int read;
                         while ((read = stateInput.read(chunk)) > 0) {
                             LOG.debug("Sending chunk to {}", request.getSenderName());
-                            responseObserver.onNext(chunkPart(chunk, read));
+                            responseObserver.onNext(chunkMessage(chunk, read));
                         }
                         LOG.debug("Done sending chunks to {}", request.getSenderName());
                         responseObserver.onCompleted();
@@ -211,7 +211,7 @@ public final class CheckpointCacheServer implements Closeable {
 
                 // if no applicable checkpoint found, callback is not executed, and we just send a 'not found'
                 if (!foundCheckpoint) {
-                    responseObserver.onNext(responsePart(NOT_FOUND));
+                    responseObserver.onNext(responseMessage(NOT_FOUND));
                     responseObserver.onCompleted();
                 }
             } catch (final IOException e) {

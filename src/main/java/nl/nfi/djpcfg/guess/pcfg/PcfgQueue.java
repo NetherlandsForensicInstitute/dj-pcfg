@@ -1,6 +1,5 @@
 package nl.nfi.djpcfg.guess.pcfg;
 
-import nl.nfi.djpcfg.guess.HeapPressureLimitingPriorityQueue;
 import nl.nfi.djpcfg.guess.pcfg.grammar.BaseStructure;
 import nl.nfi.djpcfg.guess.pcfg.grammar.Grammar;
 

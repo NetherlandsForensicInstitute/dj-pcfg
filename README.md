@@ -4,7 +4,9 @@ Java implementation of the [PCFG password guesser](https://github.com/lakiw/pcfg
 
 Only implements the guessing part. Training should still be done with the python trainer,
 the resulting model can be used by this implementation. This implementation can also be used to run a PCFG attack in a distributed way on [Hashtopolis](https://github.com/hashtopolis/server).
-It can also be executed locally using multiple threads for increased performance.
+This way, a trained rule can also immediately be run on Hashtopolis instead of having to pre-generate a target list.
+
+This Java implementation can also be executed (locally) using multiple threads for increased performance.
 
 It implements a subset of the python guesser implementation. A not included (yet) shortlist:
 * honeywords is not supported
@@ -15,7 +17,7 @@ A 'new' features shortlist:
 * ability to skip the first *n* passwords
 * ability to show the keyspace of a given rule
 * ability to share progress between running instances in order to improve performance
-* multithreading (but can't run massively parallel)
+* multithreading (but can't run massively parallel when using true probability order)
 
 Apart from the guesser it also implements a serializer for serializing a trained grammer to a binary file. This improves
 the performance of loading a model and makes it easier to upload it to Hashtopolis.
@@ -198,7 +200,7 @@ same number you would pass to *limit* when using python PCFG
 
 **!! Note** that this setup does not keep track of earlier states, or shares state between Hashtopolis nodes. This means each chunk will make the guesser start skipping from keyspace position 0.
 In order to make use of state sharing (highly recommended), there are two mutually exclusive options to use:
-* `--cache_directory_path`: store and load state from given directory. State can be shared between different nodes if the directory path points to
+* `--cache_directory_path`(**will be deprecated**): store and load state from given directory. State can be shared between different nodes if the directory path points to
 a shared filesystem directory (e.g. NFS share, only tested with this). Using it in combination with such a share is not entirely robust,
 but good enough for basic attacks
 
@@ -206,8 +208,8 @@ An example preprocessor command would be:
 ```
 --rule {rule_file_name} --max_keyspace 1000000 --cache_directory_path {some_directory}/checkpoint_cache --log_directory_path {some_directory}/logs --max_heap 32G --producer_thread_count 4
 ```
-* `--cache_server_address`: load and store state from using a cache server. This requires a running cache server before starting the attack, for example
-on the same node as the Hashtopolis instance [**experimental!**]
+* `--cache_server_address`(**experimental**): load and store state from using a cache server. This requires a running cache server before starting the attack, for example
+on the same node as the Hashtopolis instance
 
 Setting up the cache server requires you to run the `cache-server-{version}.jar` jar. Example shell command:
 ```shell
@@ -215,7 +217,7 @@ java -jar cache-server-{version}.jar --port 60000 --cache_directory_path {some_d
 ```
 An example preprocessor command would be:
 ```
---rule {rule_file_name} --max_keyspace 1000000 --cache_server_address {cache_server_host}:6000 --log_directory_path {some_directory}/logs --max_heap 32G --producer_thread_count 4
+--rule {rule_file_name} --max_keyspace 1000000 --cache_server_address {cache_server_host}:60000 --log_directory_path {some_directory}/logs --max_heap 32G --producer_thread_count 4
 ```
 
 Finally, the current Hashtopolis agent can't benchmark a preprocessor task correctly, so static chunking is required.
@@ -223,19 +225,10 @@ So for *Use static chunking*, pick `Fixed chunk size`. Fill in a size which will
 Note that the guesser will not run exactly the same speed over the course of the keyspace. Most likely it will slow down.
 
 It may be necessary to extend the Hashcat timeout abort in case a rule takes a while. This can be
-configured by adding e.g. `--stdin-timeout-abort=36000` to *Attack command*, which increases the time
-to 10 hours (from the default 5 minutes). It can also be disabled instead by setting it to `0`.
+configured by adding e.g. `--stdin-timeout-abort=3600` to *Attack command*, which increases the time
+to 1 hour (from the default 5 minutes). It can also be disabled instead by setting it to `0`, but this is not advised.
 
 ## Important
 
-1) Try to configure chunk sizes which are not too small (e.g. 1 hour), especially when you share the cached state between checkpoints.
-2) The `--max_heap` also determines the possible size of the output cache state. If this state would be shared between nodes, you should limit the heap size to that of the node with the lowest amount of resources.
-
-TODO
--
-- [ ] add some code documentation
-- [ ] allow sharing checkpoints between Hashtopolis nodes (in absence of shared FS)
-- [ ] improve checkpointing (atomicity, more even distribution, size handling)
-- [ ] add missing features of python implementation, where possible
-- [ ] take a look at libraries for common functionality (e.g. serialization, instead of the current DIY)
-- [ ] ...
+1) Try to configure chunk sizes which are not too small (e.g. 1 hour), especially when you share the cached state between checkpoints. Else, the state sharing might become too large of a overhead.
+2) The `--max_heap` also influences the possible size of the output cache state. If this state would be shared between nodes, you should limit the heap size to that of the node with the lowest amount of resources.

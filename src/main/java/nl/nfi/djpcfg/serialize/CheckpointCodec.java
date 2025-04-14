@@ -19,7 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
 
-import nl.nfi.djpcfg.guess.HeapPressureLimitingPriorityQueue;
+import nl.nfi.djpcfg.guess.pcfg.HeapPressureLimitingPriorityQueue;
 import nl.nfi.djpcfg.guess.cache.Checkpoint;
 import nl.nfi.djpcfg.guess.pcfg.ParseTree;
 import nl.nfi.djpcfg.guess.pcfg.Pcfg;
@@ -54,7 +54,7 @@ public abstract sealed class CheckpointCodec implements Closeable permits Encode
             this.encoder = encoder;
         }
 
-        public void writeCacheUsingBaseRefs(final Pcfg pcfg, final Checkpoint state) throws IOException {
+        public void writeCheckpointUsingBaseRefs(final Pcfg pcfg, final Checkpoint state) throws IOException {
             final Map<List<String>, Integer> lookup = new HashMap<>();
             final List<BaseStructure> baseStructures = pcfg.baseStructures();
             for (int i = 0; i < baseStructures.size(); i++) {
@@ -90,7 +90,7 @@ public abstract sealed class CheckpointCodec implements Closeable permits Encode
             this.decoder = decoder;
         }
 
-        public Checkpoint readCacheUsingBaseRefs(final Pcfg pcfg) throws IOException {
+        public Checkpoint readCheckpointUsingBaseRefs(final Pcfg pcfg) throws IOException {
             final Map<Integer, BaseStructure> lookup = new HashMap<>();
             final List<BaseStructure> baseStructures = pcfg.baseStructures();
             for (int i = 0; i < baseStructures.size(); i++) {

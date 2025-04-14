@@ -15,6 +15,8 @@ import static nl.nfi.djpcfg.common.HostUtils.hostname;
 
 public final class LoggerConfigurator extends TylerConfiguratorBase implements Configurator {
 
+    private static final String DJ_PCFG_LOG_LEVEL = "DEBUG";
+
     static {
         System.setProperty("slf4j.internal.verbosity", "ERROR");
     }
@@ -35,7 +37,7 @@ public final class LoggerConfigurator extends TylerConfiguratorBase implements C
         setupLogger("io.grpc.netty", "WARN", null);
 
         final Appender<ILoggingEvent> appender = createFileAppender();
-        final Logger root = setupLogger("ROOT", "DEBUG", null);
+        final Logger root = setupLogger("ROOT", DJ_PCFG_LOG_LEVEL, null);
         root.addAppender(appender);
 
         return ExecutionStatus.DO_NOT_INVOKE_NEXT_IF_ANY;

@@ -3,38 +3,43 @@ package nl.nfi.djpcfg.guess.cache.distributed;
 import java.util.UUID;
 
 import static com.google.protobuf.UnsafeByteOperations.unsafeWrap;
-import static nl.nfi.djpcfg.guess.cache.distributed.CheckpointServiceOuterClass.*;
+import static nl.nfi.djpcfg.guess.cache.distributed.CheckpointServiceOuterClass.CheckpointMetadata;
+import static nl.nfi.djpcfg.guess.cache.distributed.CheckpointServiceOuterClass.StreamMessage;
+import static nl.nfi.djpcfg.guess.cache.distributed.CheckpointServiceOuterClass.Chunk;
+import static nl.nfi.djpcfg.guess.cache.distributed.CheckpointServiceOuterClass.CheckpointRequest;
+import static nl.nfi.djpcfg.guess.cache.distributed.CheckpointServiceOuterClass.Response;
+import static nl.nfi.djpcfg.guess.cache.distributed.CheckpointServiceOuterClass.StorageResponse;
 
 public final class MessageFactory {
 
-    static CheckpointPart responsePart(final Response response) {
-        return CheckpointPart.newBuilder()
+    static StreamMessage responseMessage(final Response response) {
+        return StreamMessage.newBuilder()
                 .setResponse(response)
                 .build();
     }
 
-    static CheckpointPart metadataPart(final String senderName, final UUID uuid, final long keyspaceOffset) {
-        return CheckpointPart.newBuilder()
-                .setMetadata(request(senderName, uuid, keyspaceOffset))
+    static StreamMessage metadataMessage(final String senderName, final UUID uuid, final long keyspaceOffset) {
+        return StreamMessage.newBuilder()
+                .setRequest(request(senderName, uuid, keyspaceOffset))
                 .build();
     }
 
-    static CheckpointPart metadataPart(final UUID uuid, final long keyspaceOffset) {
-        return metadataPart("", uuid, keyspaceOffset);
+    static StreamMessage metadataMessage(final UUID uuid, final long keyspaceOffset) {
+        return metadataMessage("", uuid, keyspaceOffset);
     }
 
-    static CheckpointPart chunkPart(final byte[] chunk, final int length) {
-        return chunkPart(chunk, 0, length);
+    static StreamMessage chunkMessage(final byte[] chunk, final int length) {
+        return chunkMessage(chunk, 0, length);
     }
 
-    static CheckpointPart chunkPart(final byte[] chunk, final int offset, final int length) {
-        return CheckpointPart.newBuilder()
+    static StreamMessage chunkMessage(final byte[] chunk, final int offset, final int length) {
+        return StreamMessage.newBuilder()
                 .setChunk(Chunk.newBuilder().setData(unsafeWrap(chunk, offset, length))) // .setData(ByteString.copyFrom(chunk, offset, length))
                 .build();
     }
 
-    static RequestMetadata request(final String senderName, final UUID uuid, final long keyspaceOffset) {
-        return RequestMetadata.newBuilder()
+    static CheckpointRequest request(final String senderName, final UUID uuid, final long keyspaceOffset) {
+        return CheckpointRequest.newBuilder()
                 .setSenderName(senderName)
                 .setCheckpointMetadata(
                         CheckpointMetadata.newBuilder()

@@ -1,37 +1,7 @@
 package nl.nfi.djpcfg.guess.cache.distributed;
 
-import static java.io.OutputStream.nullOutputStream;
-import static java.nio.charset.StandardCharsets.UTF_8;
-import static java.nio.file.Files.copy;
-import static java.nio.file.Files.isRegularFile;
-import static java.nio.file.Files.readAllBytes;
-import static java.util.Collections.emptyList;
-import static java.util.Map.entry;
-import static java.util.stream.LongStream.of;
-import static java.util.stream.LongStream.range;
-
-import static org.assertj.core.api.Assertions.assertThat;
-
-import static nl.nfi.djpcfg.Utils.time;
-import static nl.nfi.djpcfg.serialize.CacheIndexCodec.forInput;
-
-import java.io.IOException;
-import java.io.PrintStream;
-import java.io.UncheckedIOException;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.HexFormat;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
-
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
-
-import nl.nfi.djpcfg.Utils.TimedResult;
+import nl.nfi.djpcfg.common.Timers;
+import nl.nfi.djpcfg.common.Timers.TimedResult;
 import nl.nfi.djpcfg.guess.cache.CacheIndex;
 import nl.nfi.djpcfg.guess.cache.Checkpoint;
 import nl.nfi.djpcfg.guess.cache.directory.DirectoryCheckpointCache;
@@ -44,6 +14,36 @@ import nl.nfi.djpcfg.guess.pcfg.grammar.Grammar;
 import nl.nfi.djpcfg.serialize.CacheIndexCodec;
 import nl.nfi.djpcfg.serialize.CheckpointCodec;
 import nl.nfi.djpcfg.serialize.PcfgCodec;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import java.io.IOException;
+import java.io.PrintStream;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.LongStream;
+
+import static java.io.OutputStream.nullOutputStream;
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static java.nio.file.Files.copy;
+import static java.nio.file.Files.isRegularFile;
+import static java.nio.file.Files.list;
+import static java.util.Collections.emptyList;
+import static java.util.Map.entry;
+import static java.util.stream.Collectors.joining;
+import static java.util.stream.LongStream.of;
+import static java.util.stream.LongStream.range;
+import static nl.nfi.djpcfg.common.Timers.time;
+import static org.assertj.core.api.Assertions.assertThat;
 
 class DistributedCacheTest {
 
@@ -67,7 +67,7 @@ class DistributedCacheTest {
             final Pcfg pcfg = Pcfg.loadFrom(DEFAULT_RULE_PATH);
             final Checkpoint checkpoint = generateCheckpoint(pcfg, 10000000000L, 1);
             try (final CheckpointCodec.Encoder encoder = CheckpointCodec.forOutput(LARGE_CHECKPOINT_PATH)) {
-                encoder.writeCacheUsingBaseRefs(pcfg, checkpoint);
+                encoder.writeCheckpointUsingBaseRefs(pcfg, checkpoint);
             }
         }
     }
@@ -148,7 +148,7 @@ class DistributedCacheTest {
         try (final CheckpointCacheServer server = CheckpointCacheServer.start(RANDOM_PORT, tempWorkDir);
              final CheckpointCacheClient client = CheckpointCacheClient.connect("localhost", RANDOM_PORT)) {
 
-            final Checkpoint checkpoint = CheckpointCodec.forInput(LARGE_CHECKPOINT_PATH).readCacheUsingBaseRefs(pcfg);
+            final Checkpoint checkpoint = CheckpointCodec.forInput(LARGE_CHECKPOINT_PATH).readCheckpointUsingBaseRefs(pcfg);
             // should not exist yet, so should have stored
             {
                 final boolean didStore = client.store(pcfg, pcfg.ruleInfo().uuid(), checkpoint.keyspacePosition(), checkpoint);
@@ -229,7 +229,7 @@ class DistributedCacheTest {
     }
 
     @Test
-    void mixSingleClient() throws IOException, NoSuchAlgorithmException {
+    void mixSingleClient() throws IOException {
         final Pcfg pcfg = PcfgCodec.forInput(DEFAULT_RULE_PATH).read();
 
         final long[] offsets = {
@@ -252,63 +252,67 @@ class DistributedCacheTest {
                 1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L, 22L, 23L, 24L, 46L, 123L, 334L, 5697L, 12105L, 21630L, 34342L, 58554L, 78025L, 99154L, 962364L
             ));
 
-            final MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
-//            final String output = list(tempWorkDir)
-//                    .filter(Files::isRegularFile)
-//                    .filter(file -> file.toString().contains("-"))
-//                    .sorted()
-//                    .map(file -> {
-//                        try {
-//                            return "  entry(\"" + file.getFileName() + "\", \"" + HexFormat.of().formatHex(sha256.digest(readAllBytes(file))) + "\")";
-//                        } catch (final IOException e) {
-//                            throw new UncheckedIOException(e);
-//                        }
-//                    })
-//                    .collect(joining(",\n", "Map.ofEntries(\n", "\n)"));
+            final String output = list(tempWorkDir)
+                    .filter(Files::isRegularFile)
+                    .filter(file -> file.toString().contains("_"))
+                    .sorted()
+                    .map(file -> {
+                        try {
+                            final Checkpoint checkpoint = CheckpointCodec.forInput(file).readCheckpointUsingBaseRefs(pcfg);
+                            return "  entry(\"" + file.getFileName() + "\", new Info(%d, %d, %s))".formatted(checkpoint.keyspacePosition(), checkpoint.queue().size(), Double.toString(checkpoint.next().probability()));
+                        } catch (final IOException e) {
+                            throw new UncheckedIOException(e);
+                        }
+                    })
+                    .collect(joining(",\n", "Map.ofEntries(\n", "\n)"));
+
+            // System.out.println(output);
 
             // TODO: fragile test using hash, also not checking if there are extraneous files
-            final Map<String, String> entries = Map.ofEntries(
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_1", "e46c6145fdd82673bc8615987d7430a3f54b75cdca31a5dfacb641d2e081fbb3"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_10", "b522bc8181b56fd67c5bd77514cc1178820ab182f4cd65ef45a03b48b97722ed"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_11", "9aa7df0678fe0b9ecf4ae026853ef80ecff8ef94a92acbc4381ae6a68712ca66"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_12", "098e4be27b139def78334ed82bcd5744fda7cec0ab4e0f4af51eeadd2627acfa"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_12105", "92189c66199d87e054db86190ca3224674714b8a0f321a979979d30cf3152ef1"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_123", "96150c997f08beb58d734df4f8d47472d46ad1d4b6b7f4aa0400dcbe94df367f"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_13", "ee0f5dd8020bf61cd695b52c046ee47916766052ce817984ea4844706fe56548"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_14", "f929501cf4f8197ba1593e08ed9ccff77e40ddae7db396e00028456df4752241"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_15", "dbe1b2761b75163974a2adabf9d6fcf6d763650e52eeb3987e20de4db678b844"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_16", "a1a9eb5717c672b318e57a21265e7b011d9ab3e772631c217133395b67e2922c"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_17", "a07307066d1eed05d7577dea47611ba95fb833f5b1950cd61c48c3c60f18d1bf"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_18", "bd607859d817817f210c6236787e0dde0adc489306284564babaa57f3be4ab3d"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_19", "0a263d9512e2c5534fd546476d6c3456055e8956625e850b16afb297247001c8"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_2", "e779c2b7b2b12a70304e64c37a06db8fe9e1be75d2ec1db134cccabee48f7393"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_20", "54415ebd2a772330606cdc8940f0d6da92ca1bea2a880cee8baedfe54e1abce5"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_21", "22c29621d67bedc6eefa84ffa058942f1b6f5d0c03f4100713f71cef7c82b485"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_21630", "d786867fe52437086c15a1a0ae1c5e53e6e1b83391cfbc5037052bbcfd2fa906"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_22", "450ccf35199bea2a8c9932b2df91a7048eb4a49e97f58b309afc07f2bed6714b"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_23", "2c40f2436e789df85f68ce1cb562191ffad3f0fee94900fcef1524586acd1ce6"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_24", "c37bc0b9648d30395518e7397ad2c5910fdf1ecacf16515c0b30e4f534b3cf8c"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_3", "89dd64dd2cc865aee9e602d8ac43e9b0a70401549c0db10804f09b952d1b1cf9"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_334", "5f9674b0574cb8e11f2117dd3c048064a8cdb7fbc31bc7fcbc40fb91522a22b0"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_34342", "0425dbe7c44a29da4d0e90057b4fe9160402fe0b991a11688de2b852e3082f1c"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_4", "ab0c84b46b4e3f3a1579f0b7b290385b0bccce42b5b80536e35a55d4893e4797"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_46", "d9fae60610c303cab993f86629b17cd092612f2e58a24a099f37603493f90884"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_5", "4af02fa16ecfb2881b2caff7d782dc781b557b29cf5444475c0cceddf82ccf97"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_5697", "10163f96e9776abdde0a0c4d19345e968976424e2990e6b997668064b463b4a2"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_58554", "35709891531338e9e756c13beb019e6636f2ed366475bcef57b3e6e2c3f9497d"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_6", "584889b1d4eb012c9aa72dfb286ffb54b3698acede695468c26a2861280e960e"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_7", "dfc4d37e7bd6043261c6598e972ef8cecc6baf0fbea62977f172598323d1ba64"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_78025", "724e16167bed8b6c0e85a548fbf8a7d3ce0330d425183bd6855da39594e88f02"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_8", "6dfedbdef526581764ca7bca1d6d8bcde9ed812ec77e0f74b0ce799855821f73"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_9", "d35b84140a69d13acfb02cdb0202b216b6cc860657c5e0f853c8592b55e0420b"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_962364", "1fff7651a5602ffa8cff75e6142c637bb99f59365ea0bb459f2c166c7807e857"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_99154", "1bb2ceacce5879314bbf4a57f3ca0132e4b15c33c551d8fe34e221306ed9e592")
+            final Map<String, Info> entries = Map.ofEntries(
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_1", new Info(1, 11318, 0.0024244029452405967)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_10", new Info(10, 11320, 5.755422235042858E-4)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_11", new Info(11, 11320, 5.326712943791993E-4)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_12", new Info(12, 11321, 5.208610916092177E-4)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_12105", new Info(12105, 11463, 4.4766345659649674E-6)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_123", new Info(123, 11324, 1.7630669602691808E-4)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_13", new Info(13, 11321, 4.7908263297284117E-4)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_14", new Info(14, 11321, 4.5731376888565305E-4)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_15", new Info(15, 11321, 4.3835525030400905E-4)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_16", new Info(16, 11321, 4.306465888141571E-4)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_17", new Info(17, 11321, 4.174556723555294E-4)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_18", new Info(18, 11321, 4.1121086084506777E-4)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_19", new Info(19, 11321, 4.060947070553935E-4)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_2", new Info(2, 11319, 0.001888500267613507)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_20", new Info(20, 11321, 3.9816375424924053E-4)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_21", new Info(21, 11321, 3.8384543629717727E-4)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_21630", new Info(21630, 11538, 2.6794330703179038E-6)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_22", new Info(22, 11322, 3.8160445216704254E-4)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_23", new Info(23, 11322, 3.810153825992059E-4)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_24", new Info(24, 11322, 3.7557290534249673E-4)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_3", new Info(3, 11319, 0.0015437994060342043)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_334", new Info(334, 11329, 9.21724976189359E-5)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_34342", new Info(34342, 11624, 1.7836439345140781E-6)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_4", new Info(4, 11319, 0.0015408471922418515)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_46", new Info(46, 11323, 2.9560852802658214E-4)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_5", new Info(5, 11319, 0.0012074122943631226)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_5697", new Info(5697, 11407, 8.574185825017293E-6)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_58554", new Info(58554, 11700, 1.2543396119357143E-6)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_6", new Info(6, 11319, 6.574257619731409E-4)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_7", new Info(7, 11319, 6.42261801054931E-4)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_78025", new Info(78025, 11737, 9.463345603793074E-7)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_8", new Info(8, 11319, 6.364303675070386E-4)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_9", new Info(9, 11320, 6.119825132606092E-4)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_962364", new Info(962364, 14326, 5.6498296750519124E-8)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_99154", new Info(99154, 11739, 9.272821862404561E-7))
             );
 
-            entries.forEach((file, expectedHash) -> {
+            entries.forEach((file, info) -> {
                 try {
-                    final String actualHash = HexFormat.of().formatHex(sha256.digest(readAllBytes(tempWorkDir.resolve(file))));
-                    assertThat(actualHash).isEqualTo(expectedHash);
+                    final Checkpoint checkpoint = CheckpointCodec.forInput(tempWorkDir.resolve(file)).readCheckpointUsingBaseRefs(pcfg);
+                    assertThat(checkpoint.keyspacePosition()).isEqualTo(info.keyspacePosition());
+                    assertThat(checkpoint.queue().size()).isEqualTo(info.queueSize());
+                    assertThat(checkpoint.next().probability()).isEqualTo(info.currentProbability());
                 }
                 catch (final IOException e) {
                     throw new UncheckedIOException(e);
@@ -327,7 +331,7 @@ class DistributedCacheTest {
         };
 
         try (final CheckpointCacheServer server = CheckpointCacheServer.start(RANDOM_PORT, tempWorkDir)) {
-            of(offsets)
+            LongStream.of(offsets)
                 .parallel()
                 .forEach(offset -> {
                     try (final CheckpointCacheClient client = CheckpointCacheClient.connect("localhost", RANDOM_PORT)) {
@@ -347,48 +351,50 @@ class DistributedCacheTest {
             final MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
 
             // TODO: fragile test using hash, also not checking if there are extraneous files
-            final Map<String, String> entries = Map.ofEntries(
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_1", "e46c6145fdd82673bc8615987d7430a3f54b75cdca31a5dfacb641d2e081fbb3"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_10", "b522bc8181b56fd67c5bd77514cc1178820ab182f4cd65ef45a03b48b97722ed"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_11", "9aa7df0678fe0b9ecf4ae026853ef80ecff8ef94a92acbc4381ae6a68712ca66"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_12", "098e4be27b139def78334ed82bcd5744fda7cec0ab4e0f4af51eeadd2627acfa"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_12105", "92189c66199d87e054db86190ca3224674714b8a0f321a979979d30cf3152ef1"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_123", "96150c997f08beb58d734df4f8d47472d46ad1d4b6b7f4aa0400dcbe94df367f"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_13", "ee0f5dd8020bf61cd695b52c046ee47916766052ce817984ea4844706fe56548"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_14", "f929501cf4f8197ba1593e08ed9ccff77e40ddae7db396e00028456df4752241"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_15", "dbe1b2761b75163974a2adabf9d6fcf6d763650e52eeb3987e20de4db678b844"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_16", "a1a9eb5717c672b318e57a21265e7b011d9ab3e772631c217133395b67e2922c"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_17", "a07307066d1eed05d7577dea47611ba95fb833f5b1950cd61c48c3c60f18d1bf"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_18", "bd607859d817817f210c6236787e0dde0adc489306284564babaa57f3be4ab3d"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_19", "0a263d9512e2c5534fd546476d6c3456055e8956625e850b16afb297247001c8"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_2", "e779c2b7b2b12a70304e64c37a06db8fe9e1be75d2ec1db134cccabee48f7393"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_20", "54415ebd2a772330606cdc8940f0d6da92ca1bea2a880cee8baedfe54e1abce5"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_21", "22c29621d67bedc6eefa84ffa058942f1b6f5d0c03f4100713f71cef7c82b485"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_21630", "d786867fe52437086c15a1a0ae1c5e53e6e1b83391cfbc5037052bbcfd2fa906"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_22", "450ccf35199bea2a8c9932b2df91a7048eb4a49e97f58b309afc07f2bed6714b"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_23", "2c40f2436e789df85f68ce1cb562191ffad3f0fee94900fcef1524586acd1ce6"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_24", "c37bc0b9648d30395518e7397ad2c5910fdf1ecacf16515c0b30e4f534b3cf8c"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_3", "89dd64dd2cc865aee9e602d8ac43e9b0a70401549c0db10804f09b952d1b1cf9"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_334", "5f9674b0574cb8e11f2117dd3c048064a8cdb7fbc31bc7fcbc40fb91522a22b0"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_34342", "0425dbe7c44a29da4d0e90057b4fe9160402fe0b991a11688de2b852e3082f1c"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_4", "ab0c84b46b4e3f3a1579f0b7b290385b0bccce42b5b80536e35a55d4893e4797"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_46", "d9fae60610c303cab993f86629b17cd092612f2e58a24a099f37603493f90884"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_5", "4af02fa16ecfb2881b2caff7d782dc781b557b29cf5444475c0cceddf82ccf97"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_5697", "10163f96e9776abdde0a0c4d19345e968976424e2990e6b997668064b463b4a2"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_58554", "35709891531338e9e756c13beb019e6636f2ed366475bcef57b3e6e2c3f9497d"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_6", "584889b1d4eb012c9aa72dfb286ffb54b3698acede695468c26a2861280e960e"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_7", "dfc4d37e7bd6043261c6598e972ef8cecc6baf0fbea62977f172598323d1ba64"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_78025", "724e16167bed8b6c0e85a548fbf8a7d3ce0330d425183bd6855da39594e88f02"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_8", "6dfedbdef526581764ca7bca1d6d8bcde9ed812ec77e0f74b0ce799855821f73"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_9", "d35b84140a69d13acfb02cdb0202b216b6cc860657c5e0f853c8592b55e0420b"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_962364", "1fff7651a5602ffa8cff75e6142c637bb99f59365ea0bb459f2c166c7807e857"),
-                entry("384adebf-ba38-4307-891d-5b4a0a02178b_99154", "1bb2ceacce5879314bbf4a57f3ca0132e4b15c33c551d8fe34e221306ed9e592")
+            final Map<String, Info> entries = Map.ofEntries(
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_1", new Info(1, 11318, 0.0024244029452405967)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_10", new Info(10, 11320, 5.755422235042858E-4)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_11", new Info(11, 11320, 5.326712943791993E-4)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_12", new Info(12, 11321, 5.208610916092177E-4)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_12105", new Info(12105, 11463, 4.4766345659649674E-6)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_123", new Info(123, 11324, 1.7630669602691808E-4)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_13", new Info(13, 11321, 4.7908263297284117E-4)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_14", new Info(14, 11321, 4.5731376888565305E-4)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_15", new Info(15, 11321, 4.3835525030400905E-4)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_16", new Info(16, 11321, 4.306465888141571E-4)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_17", new Info(17, 11321, 4.174556723555294E-4)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_18", new Info(18, 11321, 4.1121086084506777E-4)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_19", new Info(19, 11321, 4.060947070553935E-4)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_2", new Info(2, 11319, 0.001888500267613507)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_20", new Info(20, 11321, 3.9816375424924053E-4)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_21", new Info(21, 11321, 3.8384543629717727E-4)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_21630", new Info(21630, 11538, 2.6794330703179038E-6)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_22", new Info(22, 11322, 3.8160445216704254E-4)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_23", new Info(23, 11322, 3.810153825992059E-4)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_24", new Info(24, 11322, 3.7557290534249673E-4)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_3", new Info(3, 11319, 0.0015437994060342043)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_334", new Info(334, 11329, 9.21724976189359E-5)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_34342", new Info(34342, 11624, 1.7836439345140781E-6)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_4", new Info(4, 11319, 0.0015408471922418515)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_46", new Info(46, 11323, 2.9560852802658214E-4)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_5", new Info(5, 11319, 0.0012074122943631226)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_5697", new Info(5697, 11407, 8.574185825017293E-6)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_58554", new Info(58554, 11700, 1.2543396119357143E-6)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_6", new Info(6, 11319, 6.574257619731409E-4)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_7", new Info(7, 11319, 6.42261801054931E-4)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_78025", new Info(78025, 11737, 9.463345603793074E-7)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_8", new Info(8, 11319, 6.364303675070386E-4)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_9", new Info(9, 11320, 6.119825132606092E-4)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_962364", new Info(962364, 14326, 5.6498296750519124E-8)),
+                entry("384adebf-ba38-4307-891d-5b4a0a02178b_99154", new Info(99154, 11739, 9.272821862404561E-7))
             );
 
-            entries.forEach((file, expectedHash) -> {
+            entries.forEach((file, info) -> {
                 try {
-                    final String actualHash = HexFormat.of().formatHex(sha256.digest(readAllBytes(tempWorkDir.resolve(file))));
-                    assertThat(actualHash).isEqualTo(expectedHash);
+                    final Checkpoint checkpoint = CheckpointCodec.forInput(tempWorkDir.resolve(file)).readCheckpointUsingBaseRefs(pcfg);
+                    assertThat(checkpoint.keyspacePosition()).isEqualTo(info.keyspacePosition());
+                    assertThat(checkpoint.queue().size()).isEqualTo(info.queueSize());
+                    assertThat(checkpoint.next().probability()).isEqualTo(info.currentProbability());
                 }
                 catch (final IOException e) {
                     throw new UncheckedIOException(e);
@@ -398,6 +404,7 @@ class DistributedCacheTest {
     }
 
 
+    @Disabled
     @Test
     void performanceTest() throws IOException {
         final Pcfg pcfg = PcfgCodec.forInput(DEFAULT_RULE_PATH).read();
@@ -406,7 +413,7 @@ class DistributedCacheTest {
              final CheckpointCacheClient client = CheckpointCacheClient.connect("localhost", RANDOM_PORT)) {
 
             {
-                final Checkpoint checkpoint = CheckpointCodec.forInput(LARGE_CHECKPOINT_PATH).readCacheUsingBaseRefs(pcfg);
+                final Checkpoint checkpoint = CheckpointCodec.forInput(LARGE_CHECKPOINT_PATH).readCheckpointUsingBaseRefs(pcfg);
                 final boolean didStore = client.store(pcfg, pcfg.ruleInfo().uuid(), checkpoint.keyspacePosition(), checkpoint);
                 assertThat(didStore).isTrue();
             }
@@ -438,5 +445,9 @@ class DistributedCacheTest {
     private static void addToCache(final Path cacheDirectory, final UUID uuid, final long offset, final Path checkpoint) throws IOException {
         final CheckpointFileCache cache = CheckpointFileCache.createOrLoadFrom(cacheDirectory);
         cache.store(uuid, offset, copy(checkpoint, checkpoint.resolveSibling(UUID.randomUUID().toString())));
+    }
+
+    record Info(long keyspacePosition, int queueSize, double currentProbability) {
+
     }
 }

@@ -15,7 +15,7 @@ message CheckpointMetadata {
 }
 
 // TODO: look into using headers for request metadata (except for checkpoint metadata)
-message RequestMetadata {
+message CheckpointRequest {
   string senderName = 1;
   CheckpointMetadata checkpointMetadata = 2;
 }
@@ -24,9 +24,9 @@ message Chunk {
   bytes data = 1;
 }
 
-message CheckpointPart {
+message StreamMessage {
   oneof part {
-    RequestMetadata metadata = 1;
+    CheckpointRequest request = 1;
     Response response = 2;
     Chunk chunk = 3;
   }
@@ -38,20 +38,35 @@ message StorageResponse {
 
 service CheckpointService {
 
-  // first server stream message is response, second metadata, rest are chunks
-  // flow:
-  //    - client -> server: CheckpointMetadata
-  //    - server -> client: CheckpointPart<Response>
-  //      optionally:
-  //    - server -> client: CheckpointPart<RequestMetadata>
-  //    - server -> client: CheckpointPart<Chunk>[]
-  rpc getCheckpoint(RequestMetadata) returns (stream CheckpointPart) {}
+  /**
+   * Request a checkpoint from the server. The request includes the UUID of the PCFG rule which
+   * will be used. It will also include the keyspace offset where the client would like to start generating.
+   *
+   * Server first returns a response. In case of Response.OK, will follow by transferring the checkpoint data.
+   *
+   * Flow:
+   *   - client -> server: CheckpointRequest
+   *   - server -> client: StreamMessage<Response>
+   *
+   *   in case of Response.OK:
+   *   - server -> client: StreamMessage<CheckpointRequest>
+   *   - server -> client: StreamMessage<Chunk>[]
+   */
+  rpc getCheckpoint(CheckpointRequest) returns (stream StreamMessage) {}
 
-  // first client stream message is metadata, rest are chunks
-  // flow:
-  //    - client -> server: CheckpointPart<RequestMetadata>
-  //    - server -> client: StorageResponse
-  //      optionally:
-  //    - client -> server: CheckpointPart<Chunk>[]
-  rpc storeCheckpoint(stream CheckpointPart) returns (stream StorageResponse) {}
+  /**
+   * Request the server for storing a checkpoint. The request includes the UUID of the PCFG rule from which
+   * the state was generated. It will also include the keyspace offset of the state after the final guess done
+   * by the client.
+   *
+   * Server first returns a response. In case of Response.OK, client can start transferring the checkpoint data.
+   *
+   * Flow:
+   *   - client -> server: StreamMessage<CheckpointRequest>
+   *   - server -> client: StorageResponse
+   *
+   *   in case of Response.OK:
+   *   - client -> server: StreamMessage<Chunk>[]
+   */
+  rpc storeCheckpoint(stream StreamMessage) returns (stream StorageResponse) {}
 }

@@ -86,7 +86,7 @@ public final class DirectoryCheckpointCache implements CheckpointCache {
                 final Path path = cachePath.resolve(toStateKey(grammarUuid, closestStatePosition));
                 LOG.debug("Loading checkpoint from cache: uuid {}, offset {} at path {}", grammarUuid, closestStatePosition, path);
                 try (final InputStream stateInput = new BufferedInputStream(new FileInputStream(path.toFile()))) {
-                    return Optional.of(CheckpointCodec.forInput(stateInput).readCacheUsingBaseRefs(pcfg));
+                    return Optional.of(CheckpointCodec.forInput(stateInput).readCheckpointUsingBaseRefs(pcfg));
                 }
             }
         }
@@ -104,7 +104,7 @@ public final class DirectoryCheckpointCache implements CheckpointCache {
                     final Path path = cachePath.resolve(toStateKey(grammarUuid, keyspacePosition));
                     LOG.debug("Writing new checkpoint file: uuid {}, offset {} at path {}", grammarUuid, keyspacePosition, path);
                     try (final OutputStream stateOutput = new BufferedOutputStream(new FileOutputStream(path.toFile()))) {
-                        CheckpointCodec.forOutput(stateOutput).writeCacheUsingBaseRefs(pcfg, state);
+                        CheckpointCodec.forOutput(stateOutput).writeCheckpointUsingBaseRefs(pcfg, state);
                     }
                 }
 

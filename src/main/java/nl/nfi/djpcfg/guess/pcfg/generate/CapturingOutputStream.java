@@ -26,7 +26,7 @@ public final class CapturingOutputStream extends PrintStream {
     @Override
     public void println(final String string) {
         batch.add(string);
-        if (batch.size() > batchSize) {
+        if (batch.size() >= batchSize) {
             transferBatch();
         }
     }

@@ -12,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.time.Duration;
 import java.util.Iterator;
 import java.util.Optional;
 import java.util.UUID;
@@ -23,6 +24,7 @@ import static java.io.InputStream.nullInputStream;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static nl.nfi.djpcfg.common.HostUtils.hostname;
 import static nl.nfi.djpcfg.common.HostUtils.pid;
+import static nl.nfi.djpcfg.common.Timers.time;
 import static nl.nfi.djpcfg.guess.cache.distributed.CheckpointServiceGrpc.*;
 import static nl.nfi.djpcfg.guess.cache.distributed.CheckpointServiceOuterClass.*;
 import static nl.nfi.djpcfg.guess.cache.distributed.CheckpointServiceOuterClass.Response.OK;
@@ -83,27 +85,34 @@ public final class CheckpointCacheClient implements Closeable, CheckpointCache {
 
     @Override
     public Optional<Checkpoint> getFurthestBefore(final Pcfg pcfg, final UUID grammarUuid, final long keyspacePosition) throws IOException {
-        final Iterator<CheckpointPart> parts = blockingStub.getCheckpoint(request(name, grammarUuid, keyspacePosition));
+        final Iterator<StreamMessage> messages = blockingStub.getCheckpoint(request(name, grammarUuid, keyspacePosition));
+
+        LOG.debug("Requesting checkpoint for grammar {} at offset {}", grammarUuid, keyspacePosition);
 
         // stream always starts with response message, check it
-        final Response response = parts.next().getResponse();
+        final Response response = messages.next().getResponse();
         if (!response.equals(OK)) {
             LOG.info("No checkpoint received for grammar {} at offset {}, reason: {}", grammarUuid, keyspacePosition, response);
             return Optional.empty();
         }
 
         // first part is metadata, retrieve it
-        final RequestMetadata metadata = parts.next().getMetadata();
-        final CheckpointMetadata checkpointMetadata = metadata.getCheckpointMetadata();
-        if (!checkpointMetadata.getGrammarUuid().equals(grammarUuid.toString()) || checkpointMetadata.getKeyspaceOffset() > keyspacePosition) {
+        final CheckpointRequest request = messages.next().getRequest();
+        final CheckpointMetadata metadata = request.getCheckpointMetadata();
+        if (!metadata.getGrammarUuid().equals(grammarUuid.toString()) || metadata.getKeyspaceOffset() > keyspacePosition) {
             throw new RuntimeException("Invalid checkpoint received from server: requested %s_%d, received %s_%d".formatted(
-                    checkpointMetadata.getGrammarUuid(), checkpointMetadata.getKeyspaceOffset(), grammarUuid, keyspacePosition
+                    metadata.getGrammarUuid(), metadata.getKeyspaceOffset(), grammarUuid, keyspacePosition
             ));
         }
 
+        LOG.debug("Receiving checkpoint data for grammar {} at offset {}",
+                metadata.getGrammarUuid(),
+                metadata.getKeyspaceOffset()
+        );
+
         // rest are the serialized chunk parts, read and deserialize
-        final InputStream input = toInputStream(parts);
-        return Optional.of(CheckpointCodec.forInput(input).readCacheUsingBaseRefs(pcfg));
+        final InputStream input = toInputStream(messages);
+        return Optional.of(CheckpointCodec.forInput(input).readCheckpointUsingBaseRefs(pcfg));
     }
 
     @Override
@@ -112,7 +121,7 @@ public final class CheckpointCacheClient implements Closeable, CheckpointCache {
         final CountDownLatch latch = new CountDownLatch(1);
 
         // TODO: hack
-        final AtomicReference<StreamObserver<CheckpointPart>> requestObserver = new AtomicReference<>();
+        final AtomicReference<StreamObserver<StreamMessage>> requestObserver = new AtomicReference<>();
         requestObserver.set(
                 asyncStub.storeCheckpoint(new StreamObserver<>() {
 
@@ -137,14 +146,30 @@ public final class CheckpointCacheClient implements Closeable, CheckpointCache {
 
                                 @Override
                                 public void write(final byte[] buffer, final int offset, final int length) {
-                                    requestObserver.get().onNext(chunkPart(buffer, offset, length));
+                                    int currentOffset = offset;
+                                    int remainingLength = length;
+
+                                    while (remainingLength > 0) {
+                                        // larger than chunk size happens when we directly write a byte array
+                                        // to the output stream which would be too large
+                                        final int chunkSize = Math.min(remainingLength, CHUNK_SIZE);
+                                        requestObserver.get().onNext(chunkMessage(buffer, currentOffset, chunkSize));
+                                        currentOffset += chunkSize;
+                                        remainingLength -= chunkSize;
+                                    }
                                 }
                             }, CHUNK_SIZE)) {
-                                CheckpointCodec.forOutput(output).writeCacheUsingBaseRefs(pcfg, state);
+                                final Duration duration = time(
+                                    () -> CheckpointCodec.forOutput(output).writeCheckpointUsingBaseRefs(pcfg, state)
+                                );
+                                LOG.debug("Serializing checkpoint to server done, time taken: {}", duration);
                             }
                         } catch (final IOException e) {
                             LOG.warn("Failed to send checkpoint {} at offset {}", grammarUuid, keyspacePosition, e);
                             throw new UncheckedIOException(e);
+                        } catch (final Throwable t) {
+                            LOG.warn("Failed to send checkpoint {} at offset {}", grammarUuid, keyspacePosition, t);
+                            throw new RuntimeException(t);
                         } finally {
                             LOG.debug("Finished sending checkpoint {} at offset {}", grammarUuid, keyspacePosition);
                             requestObserver.get().onCompleted();
@@ -165,7 +190,7 @@ public final class CheckpointCacheClient implements Closeable, CheckpointCache {
                 })
         );
 
-        requestObserver.get().onNext(metadataPart(name, grammarUuid, keyspacePosition));
+        requestObserver.get().onNext(metadataMessage(name, grammarUuid, keyspacePosition));
         try {
             // request for storing a checkpoint, then wait and let async stream run to completion
             // TODO: ensure latch is always counted down
@@ -182,10 +207,10 @@ public final class CheckpointCacheClient implements Closeable, CheckpointCache {
     }
 
     // TODO: improve/optimize
-    private static InputStream toInputStream(final Iterator<CheckpointPart> parts) {
+    private static InputStream toInputStream(final Iterator<StreamMessage> messages) {
         InputStream head = nullInputStream();
-        while (parts.hasNext()) {
-            final ByteString data = parts.next().getChunk().getData();
+        while (messages.hasNext()) {
+            final ByteString data = messages.next().getChunk().getData();
             head = new SequenceInputStream(head, new ByteArrayInputStream(UnsafeByteStringOperations.getBytes(data)));
         }
         return head;

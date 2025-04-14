@@ -25,7 +25,7 @@ public final class ThreadedTrueProbOrder implements PasswordGenerator {
 
     private static final Logger LOG = LoggerFactory.getLogger(ThreadedTrueProbOrder.class);
 
-    private static final int SPLIT_SIZE = 1000000;
+    private static final int SPLIT_SIZE = 10_000_000;
 
     private final Pcfg pcfg;
     private final Checkpoint state;
