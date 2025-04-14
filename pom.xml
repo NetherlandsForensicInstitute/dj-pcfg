@@ -6,7 +6,7 @@
 
     <groupId>org.example</groupId>
     <artifactId>dj-pcfg</artifactId>
-    <version>0.3.15</version>
+    <version>0.4.0</version>
 
     <properties>
 	    <maven.compiler.source>23</maven.compiler.source>
@@ -96,7 +96,6 @@
             <groupId>org.xerial.snappy</groupId>
             <artifactId>snappy-java</artifactId>
             <version>${snappy.version}</version>
-            <scope>test</scope>
         </dependency>
     </dependencies>
 

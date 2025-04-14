@@ -1,10 +1,16 @@
-package nl.nfi.djpcfg.serialize;
+package nl.nfi.djpcfg.serialize.common;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.Closeable;
 import java.io.EOFException;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -14,19 +20,29 @@ import java.util.Map.Entry;
 import java.util.Queue;
 import java.util.function.Function;
 
+import static java.lang.Math.toIntExact;
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static nl.nfi.djpcfg.serialize.JreTypeCodec.Decoder;
-import static nl.nfi.djpcfg.serialize.JreTypeCodec.Encoder;
+import static nl.nfi.djpcfg.serialize.common.JreTypeCodec.Decoder;
+import static nl.nfi.djpcfg.serialize.common.JreTypeCodec.Encoder;
 
 public abstract sealed class JreTypeCodec implements Closeable permits Encoder, Decoder {
+
+    public static Encoder forOutput(final Path path) throws IOException {
+        return new Encoder(new BufferedOutputStream(new FileOutputStream(path.toFile())));
+    }
 
     public static Encoder forOutput(final OutputStream output) {
         return new Encoder(output);
     }
 
+    public static Decoder forInput(final Path path) throws FileNotFoundException {
+        return new Decoder(new BufferedInputStream(new FileInputStream(path.toFile())));
+    }
+
     public static Decoder forInput(final InputStream input) {
         return new Decoder(input);
     }
+
 
     public static final class Encoder extends JreTypeCodec {
 
@@ -47,6 +63,11 @@ public abstract sealed class JreTypeCodec implements Closeable permits Encoder, 
         }
 
         public void writeByte(final byte value) throws IOException {
+            output.write(value);
+        }
+
+        public void writeBytes(final byte[] value) throws IOException {
+            writeVarInt(value.length);
             output.write(value);
         }
 
@@ -78,6 +99,17 @@ public abstract sealed class JreTypeCodec implements Closeable permits Encoder, 
             }
         }
 
+        public void writeVarLong(final long value) throws IOException {
+            long bits = value;
+            while (true) {
+                if ((bits & ~0x7fL) == 0) {
+                    output.write(toIntExact(bits));
+                    return;
+                }
+                output.write(toIntExact((bits & 0x7FL | 0x80L)));
+                bits >>>= 7;
+            }
+        }
         public void writeIntArray(final int[] values) throws IOException {
             writeVarInt(values.length);
             for (final int value : values) {
@@ -141,6 +173,10 @@ public abstract sealed class JreTypeCodec implements Closeable permits Encoder, 
             return (byte) readUnsignedByte();
         }
 
+        public byte[] readBytes() throws IOException {
+            return input.readNBytes(readVarInt());
+        }
+
         public int readUnsignedByte() throws IOException {
             final int read = input.read();
             if (read == -1) {
@@ -177,6 +213,20 @@ public abstract sealed class JreTypeCodec implements Closeable permits Encoder, 
                 bits |= ((long) readUnsignedByte()) << shift;
             }
             return bits;
+        }
+
+        public long readVarLong() throws IOException {
+            long value = 0;
+            long shift = 0;
+
+            while (true) {
+                final int b = readUnsignedByte();
+                value |= (b & 0x7fL) << shift;
+                if ((b & 0x80L) == 0) {
+                    return value;
+                }
+                shift += 7;
+            }
         }
 
         public int[] readIntArray() throws IOException {

@@ -1,4 +1,4 @@
-package nl.nfi.djpcfg.serialize;
+package nl.nfi.djpcfg.serialize.common;
 
 import java.io.IOException;
 

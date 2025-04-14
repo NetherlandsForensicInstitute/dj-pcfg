@@ -1,7 +1,7 @@
 package nl.nfi.djpcfg;
 
 import nl.nfi.djpcfg.guess.pcfg.PcfgGuesser;
-import nl.nfi.djpcfg.serialize.JreTypeCodec;
+import nl.nfi.djpcfg.serialize.common.JreTypeCodec;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -136,5 +136,12 @@ public final class Utils {
     }
 
     public record ScoredEntry(String password, double score) {
+    }
+
+    public record Tuple<L, R>(L left, R right) {
+
+        public static <L, R> Tuple<L, R> of(L left, R right) {
+            return new Tuple<>(left, right);
+        }
     }
 }
