@@ -1,11 +1,8 @@
 package nl.nfi.djpcfg.serialize;
 
 import nl.nfi.djpcfg.guess.cache.Checkpoint;
-import nl.nfi.djpcfg.guess.pcfg.HeapLimitingPTQueue;
-import nl.nfi.djpcfg.guess.pcfg.ParseTree;
 import nl.nfi.djpcfg.guess.pcfg.Pcfg;
-import nl.nfi.djpcfg.guess.pcfg.ReplacementSet;
-import nl.nfi.djpcfg.guess.pcfg.grammar.BaseStructure;
+import nl.nfi.djpcfg.serialize.common.JreTypeCodec;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -16,12 +13,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Path;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.PriorityQueue;
 
-import static java.util.Comparator.comparing;
 import static nl.nfi.djpcfg.serialize.CheckpointCodec.Decoder;
 import static nl.nfi.djpcfg.serialize.CheckpointCodec.Encoder;
 
@@ -54,25 +46,10 @@ public abstract sealed class CheckpointCodec implements Closeable permits Encode
         }
 
         public void writeCheckpointUsingBaseRefs(final Pcfg pcfg, final Checkpoint state) throws IOException {
-            final Map<List<String>, Integer> lookup = new HashMap<>();
-            final List<BaseStructure> baseStructures = pcfg.baseStructures();
-            for (int i = 0; i < baseStructures.size(); i++) {
-                final BaseStructure baseStructure = baseStructures.get(i);
-                lookup.put(baseStructure.variables(), i);
-            }
-
             encoder.writeString(MAGIC);
-            encoder.writeString(Config.SERIALIZED_FORMAT_VERSION);
+            encoder.writeString(nl.nfi.djpcfg.serialize.v0_4_0.CheckpointCodec.VERSION);
 
-            encoder.writeCollection(state.queue(), parseTree -> writeParseTreeUsingBaseRefs(lookup, parseTree));
-            writeParseTreeUsingBaseRefs(lookup, state.next());
-            encoder.writeLong(state.keyspacePosition());
-        }
-
-        private void writeParseTreeUsingBaseRefs(final Map<List<String>, Integer> lookup, final ParseTree parseTree) throws IOException {
-            encoder.writeVarInt(lookup.get(parseTree.replacementSet().variables()));
-            encoder.writeDouble(parseTree.probability());
-            encoder.writeVarIntArray(parseTree.replacementSet().indices());
+            nl.nfi.djpcfg.serialize.v0_4_0.CheckpointCodec.encodeUsing(encoder).writeCheckpointUsingBaseRefs(pcfg, state);
         }
 
         @Override
@@ -90,41 +67,19 @@ public abstract sealed class CheckpointCodec implements Closeable permits Encode
         }
 
         public Checkpoint readCheckpointUsingBaseRefs(final Pcfg pcfg) throws IOException {
-            final Map<Integer, BaseStructure> lookup = new HashMap<>();
-            final List<BaseStructure> baseStructures = pcfg.baseStructures();
-            for (int i = 0; i < baseStructures.size(); i++) {
-                final BaseStructure baseStructure = baseStructures.get(i);
-                lookup.put(i, baseStructure);
-            }
-
             final String magic = decoder.readString();
             if (!magic.equals(MAGIC)) {
                 throw new UnsupportedOperationException(magic);
             }
 
             final String version = decoder.readString();
-            if (!version.equals(Config.SERIALIZED_FORMAT_VERSION)) {
-                throw new UnsupportedOperationException(version);
+            if (version.equals(nl.nfi.djpcfg.serialize.v0_0_7.CheckpointCodec.VERSION)) {
+                return nl.nfi.djpcfg.serialize.v0_0_7.CheckpointCodec.decodeUsing(decoder).readCheckpointUsingBaseRefs(pcfg);
             }
-
-            final PriorityQueue<ParseTree> queue = decoder.readQueue(() -> readParseTreeUsingBaseRefs(lookup), size ->
-                    new HeapLimitingPTQueue(size, comparing(ParseTree::probability).reversed())
-            );
-            final ParseTree next = readParseTreeUsingBaseRefs(lookup);
-            final long pos = decoder.readLong();
-            return new Checkpoint(queue, next, pos);
-        }
-
-        private ParseTree readParseTreeUsingBaseRefs(final Map<Integer, BaseStructure> lookup) throws IOException {
-            final BaseStructure base = lookup.get(decoder.readVarInt());
-            final double probability = decoder.readDouble();
-            final int[] indices = decoder.readVarIntArray();
-
-            return new ParseTree(
-                    base.probability(),
-                    probability,
-                    new ReplacementSet(base.variables(), indices)
-            );
+            if (version.equals(nl.nfi.djpcfg.serialize.v0_4_0.CheckpointCodec.VERSION)) {
+                return nl.nfi.djpcfg.serialize.v0_4_0.CheckpointCodec.decodeUsing(decoder).readCheckpointUsingBaseRefs(pcfg);
+            }
+            throw new UnsupportedOperationException(version);
         }
 
         @Override

@@ -13,11 +13,11 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.PriorityQueue;
 import java.util.UUID;
 
-import static java.util.Collections.emptyList;
 import static java.util.Comparator.comparing;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -29,20 +29,31 @@ class DirectoryCheckpointCacheTest {
     @Test
     void entryRemovalOrder() throws IOException {
         // exact size (for now)
-        // final int singleSerializedStateSize = 8232;
         final int singleSerializedStateSize = sizeOfSingleSerializedState();
-        // way overestimated
-        final int idxEstimatedSize = 1000;
+        // TODO: update this size for each subtest
+        final int idxEstimatedSize = 400;
         // let's allow at most 3 state entries
         DirectoryCheckpointCache.MAX_CACHE_SIZE = 3L * singleSerializedStateSize + idxEstimatedSize;
 
         final UUID uuid = UUID.fromString("00000000-0000-0000-0000-000000000000");
 
-        final PriorityQueue<ParseTree> queue = new PriorityQueue<>(comparing(ParseTree::probability).reversed());
-        queue.add(new ParseTree(0.0, 0.0, new ReplacementSet(emptyList(), new int[0])));
-        final ParseTree next = new ParseTree(0.0, 0.0, new ReplacementSet(emptyList(), new int[8192]));
+        final List<BaseStructure> baseStructures = new ArrayList<>();
+        baseStructures.add(new BaseStructure(0.4, List.of("D1", "O1")));
+        baseStructures.add(new BaseStructure(0.3, List.of("D2", "O2")));
+        baseStructures.add(new BaseStructure(0.2, List.of("D3", "O3")));
+        baseStructures.add(new BaseStructure(0.1, List.of("D4", "O4")));
 
-        final Pcfg pcfg = Pcfg.create(null, null, List.of(new BaseStructure(1.0, emptyList())));
+        final PriorityQueue<ParseTree> queue = new PriorityQueue<>(comparing(ParseTree::probability).reversed());
+        for (final BaseStructure baseStructure : baseStructures) {
+            queue.add(new ParseTree(
+                baseStructure.probability(),
+                baseStructure.probability() / 2.0,
+                new ReplacementSet(baseStructure.variables(), new int[baseStructure.variables().size()]))
+            );
+        }
+        final ParseTree next = queue.poll();
+
+        final Pcfg pcfg = Pcfg.create(null, null, baseStructures);
 
         final DirectoryCheckpointCache checkpointCache = DirectoryCheckpointCache.createOrLoadFrom(tempWorkDir);
         checkpointCache.store(pcfg, uuid, 0, new Checkpoint(queue, next, 0));
@@ -126,11 +137,23 @@ class DirectoryCheckpointCacheTest {
     }
 
     private static int sizeOfSingleSerializedState() throws IOException {
-        final PriorityQueue<ParseTree> queue = new PriorityQueue<>(comparing(ParseTree::probability).reversed());
-        queue.add(new ParseTree(0.0, 0.0, new ReplacementSet(emptyList(), new int[0])));
-        final ParseTree next = new ParseTree(0.0, 0.0, new ReplacementSet(emptyList(), new int[8192]));
-        final Pcfg pcfg = Pcfg.create(null, null, List.of(new BaseStructure(1.0, emptyList())));
+        final List<BaseStructure> baseStructures = new ArrayList<>();
+        baseStructures.add(new BaseStructure(0.4, List.of("D1", "O1")));
+        baseStructures.add(new BaseStructure(0.3, List.of("D2", "O2")));
+        baseStructures.add(new BaseStructure(0.2, List.of("D3", "O3")));
+        baseStructures.add(new BaseStructure(0.1, List.of("D4", "O4")));
 
+        final PriorityQueue<ParseTree> queue = new PriorityQueue<>(comparing(ParseTree::probability).reversed());
+        for (final BaseStructure baseStructure : baseStructures) {
+            queue.add(new ParseTree(
+                baseStructure.probability(),
+                baseStructure.probability() / 2.0,
+                new ReplacementSet(baseStructure.variables(), new int[baseStructure.variables().size()]))
+            );
+        }
+        final ParseTree next = queue.poll();
+
+        final Pcfg pcfg = Pcfg.create(null, null, baseStructures);
         final Checkpoint state = new Checkpoint(queue, next, 0);
 
         final ByteArrayOutputStream out = new ByteArrayOutputStream();

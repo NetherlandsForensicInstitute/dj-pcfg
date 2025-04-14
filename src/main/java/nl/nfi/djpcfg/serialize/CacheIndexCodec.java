@@ -1,7 +1,7 @@
 package nl.nfi.djpcfg.serialize;
 
 import nl.nfi.djpcfg.guess.cache.CacheIndex;
-import nl.nfi.djpcfg.guess.cache.LRUEntry;
+import nl.nfi.djpcfg.serialize.common.JreTypeCodec;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -13,12 +13,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
 
 import static nl.nfi.djpcfg.serialize.CacheIndexCodec.Decoder;
 import static nl.nfi.djpcfg.serialize.CacheIndexCodec.Encoder;
@@ -53,20 +47,9 @@ public abstract sealed class CacheIndexCodec implements Closeable permits Encode
 
         public void write(final CacheIndex index) throws IOException {
             encoder.writeString(MAGIC);
-            encoder.writeString(Config.SERIALIZED_FORMAT_VERSION);
+            encoder.writeString(nl.nfi.djpcfg.serialize.v0_0_7.CacheIndexCodec.VERSION);
 
-            encoder.writeLong(index.nextSeqNum());
-
-            encoder.writeMap(index.index(),
-                    uuid -> encoder.writeString(uuid.toString()),
-                    positions -> encoder.writeList(new ArrayList<>(positions), encoder::writeLong)
-            );
-
-            encoder.writeList(index.lru(), entry -> {
-                encoder.writeString(entry.uuid().toString());
-                encoder.writeLong(entry.keyspacePosition());
-                encoder.writeLong(entry.sequenceNumber());
-            });
+            nl.nfi.djpcfg.serialize.v0_0_7.CacheIndexCodec.encodeUsing(encoder).write(index);
         }
 
         @Override
@@ -90,25 +73,11 @@ public abstract sealed class CacheIndexCodec implements Closeable permits Encode
             }
 
             final String version = decoder.readString();
-            if (!version.equals(Config.SERIALIZED_FORMAT_VERSION)) {
+            if (!version.equals(nl.nfi.djpcfg.serialize.v0_0_7.CacheIndexCodec.VERSION)) {
                 throw new UnsupportedOperationException(version);
             }
 
-            final long nextSeqNum = decoder.readLong();
-
-            final Map<UUID, Set<Long>> idx = decoder.readMap(
-                    () -> UUID.fromString(decoder.readString()),
-                    () -> new HashSet<>(decoder.readList(decoder::readLong))
-            );
-
-            final List<LRUEntry> lru = decoder.readList(
-                    () -> new LRUEntry(
-                            UUID.fromString(decoder.readString()),
-                            decoder.readLong(),
-                            decoder.readLong()
-                    )
-            );
-            return CacheIndex.init(nextSeqNum, idx, lru);
+            return nl.nfi.djpcfg.serialize.v0_0_7.CacheIndexCodec.decodeUsing(decoder).read();
         }
 
         @Override

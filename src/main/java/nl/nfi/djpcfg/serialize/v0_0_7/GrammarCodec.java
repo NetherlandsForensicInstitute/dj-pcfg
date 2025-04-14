@@ -1,26 +1,27 @@
-package nl.nfi.djpcfg.serialize;
+package nl.nfi.djpcfg.serialize.v0_0_7;
 
 import nl.nfi.djpcfg.guess.pcfg.grammar.Grammar;
 import nl.nfi.djpcfg.guess.pcfg.grammar.TerminalGroup;
+import nl.nfi.djpcfg.serialize.common.JreTypeCodec;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static nl.nfi.djpcfg.serialize.GrammarCodec.Decoder;
-import static nl.nfi.djpcfg.serialize.GrammarCodec.Encoder;
+import static nl.nfi.djpcfg.serialize.v0_0_7.GrammarCodec.Decoder;
+import static nl.nfi.djpcfg.serialize.v0_0_7.GrammarCodec.Encoder;
 
 sealed class GrammarCodec permits Encoder, Decoder {
 
-    public static Encoder encodeUsing(final JreTypeCodec.Encoder encoder) {
+    static Encoder encodeUsing(final JreTypeCodec.Encoder encoder) {
         return new Encoder(encoder);
     }
 
-    public static Decoder decodeUsing(final JreTypeCodec.Decoder decoder) {
+    static Decoder decodeUsing(final JreTypeCodec.Decoder decoder) {
         return new Decoder(decoder);
     }
 
-    public static final class Encoder extends GrammarCodec {
+    static final class Encoder extends GrammarCodec {
 
         private final JreTypeCodec.Encoder encoder;
 
@@ -40,7 +41,7 @@ sealed class GrammarCodec permits Encoder, Decoder {
         }
     }
 
-    public static final class Decoder extends GrammarCodec {
+    static final class Decoder extends GrammarCodec {
 
         private final JreTypeCodec.Decoder decoder;
 
