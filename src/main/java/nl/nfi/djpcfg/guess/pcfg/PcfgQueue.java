@@ -17,7 +17,7 @@ public final class PcfgQueue {
 
     public PcfgQueue(final Pcfg pcfg) {
         this.pcfg = pcfg;
-        this.queue = new HeapPressureLimitingPriorityQueue<>(comparing(ParseTree::probability).reversed());
+        this.queue = new HeapLimitingPTQueue(comparing(ParseTree::probability).reversed());
         initializeQueue();
     }
 

@@ -47,10 +47,10 @@ public final class ThreadedRandomWalk implements PasswordGenerator {
                 .unordered()
                 .parallel()
                 .map(state -> {
-                    final Random random = this.random == null ? new Random(state.remainingSkip) : new Random(this.random.nextLong());
+                    final Random random = this.random == null ? new Random(state.skip) : new Random(this.random.nextLong());
                     final List<String> batch = new ArrayList<>(SPLIT_SIZE);
 
-                    long remainingLimit = state.remainingLimit;
+                    long remainingLimit = state.limit;
                     do {
                         batch.add(generateGuess(pcfg.grammar(), replacementsSampler.apply(random), random));
                         remainingLimit--;
@@ -70,8 +70,8 @@ public final class ThreadedRandomWalk implements PasswordGenerator {
         return iterate(skip, toSkip -> compareUnsigned(toSkip, skip + limit) < 0, toSkip -> toSkip + SPLIT_SIZE)
                 .mapToObj(toSkip -> {
                     final ProgressState progress = new ProgressState();
-                    progress.remainingSkip = toSkip;
-                    progress.remainingLimit = min(SPLIT_SIZE, skip + limit - toSkip);
+                    progress.skip = toSkip;
+                    progress.limit = min(SPLIT_SIZE, skip + limit - toSkip);
                     return progress;
                 });
     }

@@ -3,6 +3,7 @@ package nl.nfi.djpcfg.pcfg;
 import nl.nfi.djpcfg.guess.cache.CheckpointCache;
 import nl.nfi.djpcfg.guess.cache.directory.DirectoryCheckpointCache;
 import nl.nfi.djpcfg.guess.pcfg.PcfgGuesser;
+import nl.nfi.djpcfg.guess.pcfg.generate.CapturingOutputStream;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -17,6 +18,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
+import static java.lang.Math.toIntExact;
 import static java.util.Collections.sort;
 import static java.util.stream.Collectors.toCollection;
 import static nl.nfi.djpcfg.Utils.ScoredEntry;
@@ -387,6 +389,35 @@ class PcfgGuesserMultithreadedTest {
 
             assertThat(actual).isEqualTo(expected);
         }
+    }
+
+    @Test
+    void sameAsSingleThreaded() throws IOException {
+        final String rulePath = "rules/Default.pbm";
+        final long skip = 1234567;
+        final long limit = 12345678;
+        System.setProperty("LOG_DIRECTORY_PATH", "testlogs");
+
+        final PcfgGuesser guesser = PcfgGuesser.forRule(TEST_RESOURCES_PATH.resolve(rulePath));
+
+        final List<String> singleThreadedResults = new ArrayList<>();
+        {
+            try (final PrintStream out = new CapturingOutputStream(singleThreadedResults::addAll)) {
+                guesser.generateGuesses(skip, limit, out);
+            }
+            sort(singleThreadedResults);
+        }
+
+        final List<String> multiThreadedResults = new ArrayList<>();
+        {
+            try (final PrintStream out = new CapturingOutputStream(multiThreadedResults::addAll)) {
+                guesser.threadCount(4).generateGuesses(skip, limit, out);
+            }
+            sort(multiThreadedResults);
+        }
+
+        assertThat(multiThreadedResults).hasSize(toIntExact(limit));
+        assertThat(multiThreadedResults).isEqualTo(singleThreadedResults);
     }
 
     private static List<String> generateParallel(final String rulePath, final long skip, final long limit) throws IOException {
