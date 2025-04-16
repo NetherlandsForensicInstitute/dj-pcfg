@@ -1,7 +1,7 @@
 package nl.nfi.djpcfg.serialize;
 
 import nl.nfi.djpcfg.guess.cache.Checkpoint;
-import nl.nfi.djpcfg.guess.pcfg.HeapPressureLimitingPriorityQueue;
+import nl.nfi.djpcfg.guess.pcfg.HeapLimitingPTQueue;
 import nl.nfi.djpcfg.guess.pcfg.ParseTree;
 import nl.nfi.djpcfg.guess.pcfg.Pcfg;
 import nl.nfi.djpcfg.guess.pcfg.ReplacementSet;
@@ -108,7 +108,7 @@ public abstract sealed class CheckpointCodec implements Closeable permits Encode
             }
 
             final PriorityQueue<ParseTree> queue = decoder.readQueue(() -> readParseTreeUsingBaseRefs(lookup), size ->
-                    new HeapPressureLimitingPriorityQueue<>(size, comparing(ParseTree::probability).reversed())
+                    new HeapLimitingPTQueue(size, comparing(ParseTree::probability).reversed())
             );
             final ParseTree next = readParseTreeUsingBaseRefs(lookup);
             final long pos = decoder.readLong();

@@ -16,8 +16,8 @@ public final class GuesserCommon {
 
     static long writeGuesses(final Grammar grammar, final ParseTree parseTree, long skip, final long limit, final PrintStream output) {
         final ProgressState progress = new ProgressState();
-        progress.remainingSkip = skip;
-        progress.remainingLimit = limit;
+        progress.skip = skip;
+        progress.limit = limit;
 
         return writeGuesses(grammar, parseTree, 0, new StringBuilder(), progress, output);
     }
@@ -78,8 +78,8 @@ public final class GuesserCommon {
             final int maskLength = masks.getFirst().length();
 
             for (final String mask : masks) {
-                if (shouldPrintGuess && progress.remainingSkip > 0) {
-                    progress.remainingSkip -= 1;
+                if (shouldPrintGuess && progress.skip > 0) {
+                    progress.skip -= 1;
                     continue;
                 }
 
@@ -95,20 +95,20 @@ public final class GuesserCommon {
 
                 if (shouldPrintGuess) {
                     guessCount++;
-                    progress.remainingLimit--;
+                    progress.limit--;
                     output.println(guess.toString());
                 } else {
                     guessCount += writeGuesses(grammar, parseTree, variableIndex + 1, guess, progress, output);
                 }
 
-                if (progress.remainingLimit <= 0) {
+                if (progress.limit <= 0) {
                     return guessCount;
                 }
             }
         } else {
             for (final String value : grammar.getSection(variable).get(index).values()) {
-                if (shouldPrintGuess && progress.remainingSkip > 0) {
-                    progress.remainingSkip -= 1;
+                if (shouldPrintGuess && progress.skip > 0) {
+                    progress.skip -= 1;
                     continue;
                 }
 
@@ -116,7 +116,7 @@ public final class GuesserCommon {
 
                 if (shouldPrintGuess) {
                     guessCount++;
-                    progress.remainingLimit--;
+                    progress.limit--;
                     output.println(guess.toString());
                 } else {
                     guessCount += writeGuesses(grammar, parseTree, variableIndex + 1, guess, progress, output);
@@ -124,7 +124,7 @@ public final class GuesserCommon {
 
                 guess.delete(guess.length() - value.length(), guess.length());
 
-                if (progress.remainingLimit <= 0) {
+                if (progress.limit <= 0) {
                     return guessCount;
                 }
             }

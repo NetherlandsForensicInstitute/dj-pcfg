@@ -1,6 +1,7 @@
 package nl.nfi.djpcfg.guess.pcfg.generate;
 
 import nl.nfi.djpcfg.guess.cache.Checkpoint;
+import nl.nfi.djpcfg.guess.pcfg.HeapLimitingPTQueue;
 import nl.nfi.djpcfg.guess.pcfg.Pcfg;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -9,9 +10,9 @@ import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.PriorityQueue;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
@@ -28,8 +29,11 @@ public final class ThreadedTrueProbOrder implements PasswordGenerator {
     private static final int SPLIT_SIZE = 10_000_000;
 
     private final Pcfg pcfg;
-    private final Checkpoint state;
     private final int maxProducerThreads;
+
+    // not final, we want it garbage collected as soon as we start generating
+    // to reduce memory pressure
+    private Checkpoint state;
 
     private ThreadedTrueProbOrder(final Pcfg pcfg, final Checkpoint state, final int maxProducerThreads) {
         this.pcfg = pcfg;
@@ -62,15 +66,27 @@ public final class ThreadedTrueProbOrder implements PasswordGenerator {
             }
 
             final BlockingQueue<List<String>> passwordBatches = new ArrayBlockingQueue<>(numProducerThreads * 4);
-            final AtomicReference<Checkpoint> checkpoint = new AtomicReference<>();
+            final AtomicReference<Checkpoint> checkpoint = new AtomicReference<>(state);
+            // make free for garbage collection when the atomic reference above is changed
+            state = null;
+
+            // used to make each thread wait until they have retrieved the starting checkpoint
+            final CountDownLatch latch = new CountDownLatch(numProducerThreads);
 
             for (int i = 0; i < numProducerThreads; i++) {
                 final int threadId = i;
                 executorService.submit(() -> {
                     try {
+                        Checkpoint localCheckpoint = checkpoint.get();
+                        // wait until each thread has retrieved the initial checkpoint
+                        latch.countDown();
+                        latch.await();
+
+                        LOG.debug("Starting producer thread with id [{}]", threadId);
+
                         while (true) {
                             final ProgressState workItem = workItems.poll();
-                            if (workItem.remainingLimit == 0) {
+                            if (workItem.limit == 0) {
                                 passwordBatches.put(emptyList());
                                 return;
                             }
@@ -84,21 +100,24 @@ public final class ThreadedTrueProbOrder implements PasswordGenerator {
                                     throw new RuntimeException(e);
                                 }
                             })) {
-                                Checkpoint localState = checkpoint.get();
-                                if (localState == null) {
-                                    localState = new Checkpoint(new PriorityQueue<>(state.queue()), state.next(), state.keyspacePosition());
+                                final Checkpoint globalCheckpoint = checkpoint.get();
+                                // if the shared checkpoint can be used to start from, and it progressed further than
+                                // what we have locally, use that checkpoint
+                                // else, use our local checkpoint to start from
+                                if (globalCheckpoint.keyspacePosition() <= workItem.skip && globalCheckpoint.keyspacePosition() >= localCheckpoint.keyspacePosition()) {
+                                    localCheckpoint = new Checkpoint(new HeapLimitingPTQueue(globalCheckpoint.queue()), globalCheckpoint.next(), globalCheckpoint.keyspacePosition());
                                 } else {
-                                    localState = new Checkpoint(new PriorityQueue<>(localState.queue()), localState.next(), localState.keyspacePosition());
+                                    // TODO: I don't think this can actually hit, but keep for now to be sure
+                                    localCheckpoint = new Checkpoint(new HeapLimitingPTQueue(localCheckpoint.queue()), localCheckpoint.next(), localCheckpoint.keyspacePosition());
                                 }
 
-                                TrueProbOrder.init(pcfg, localState)
-                                        .writeGuesses(workItem.remainingSkip, workItem.remainingLimit, out)
-                                        .ifPresent(newCheckpoint -> {
-                                            checkpoint.getAndUpdate(value -> value == null
-                                                    ? newCheckpoint
-                                                    : value.keyspacePosition() < newCheckpoint.keyspacePosition()
-                                                    ? newCheckpoint
-                                                    : value
+                                TrueProbOrder.init(pcfg, localCheckpoint)
+                                        .writeGuesses(workItem.skip, workItem.limit, out)
+                                        .ifPresent(nextCheckpoint -> {
+                                            checkpoint.getAndUpdate(previousCheckpoint ->
+                                                    nextCheckpoint.keyspacePosition() > previousCheckpoint.keyspacePosition()
+                                                            ? nextCheckpoint
+                                                            : previousCheckpoint
                                             );
                                         });
                             }
@@ -132,9 +151,9 @@ public final class ThreadedTrueProbOrder implements PasswordGenerator {
         long remaining = limit;
         while (remaining > 0) {
             final ProgressState progress = new ProgressState();
-            progress.remainingSkip = skip + limit - remaining;
-            progress.remainingLimit = min(SPLIT_SIZE, remaining);
-            remaining -= progress.remainingLimit;
+            progress.skip = skip + limit - remaining;
+            progress.limit = min(SPLIT_SIZE, remaining);
+            remaining -= progress.limit;
             states.add(progress);
         }
         return states;
