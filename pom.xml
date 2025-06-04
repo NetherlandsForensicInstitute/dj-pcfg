@@ -6,7 +6,7 @@
 
     <groupId>org.example</groupId>
     <artifactId>dj-pcfg</artifactId>
-    <version>0.3.15</version>
+    <version>0.5.0</version>
 
     <properties>
 	    <maven.compiler.source>23</maven.compiler.source>
