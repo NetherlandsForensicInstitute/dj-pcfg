@@ -137,4 +137,22 @@ public final class Utils {
 
     public record ScoredEntry(String password, double score) {
     }
+
+    public static class CountingPrintStream extends PrintStream {
+
+        private int count = 0;
+
+        public CountingPrintStream() {
+            super(nullOutputStream());
+        }
+
+        public int count() {
+            return count;
+        }
+
+        @Override
+        public void println(final String s) {
+            count++;
+        }
+    }
 }
