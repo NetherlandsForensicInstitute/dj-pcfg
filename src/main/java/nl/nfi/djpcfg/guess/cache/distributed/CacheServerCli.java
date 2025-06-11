@@ -1,16 +1,17 @@
 package nl.nfi.djpcfg.guess.cache.distributed;
 
-import org.slf4j.LoggerFactory;
-
-import java.nio.file.Paths;
-import java.util.Scanner;
-import java.util.concurrent.Callable;
-
 import static java.lang.Runtime.getRuntime;
 import static java.util.concurrent.Executors.newFixedThreadPool;
+
 import static picocli.CommandLine.Command;
 import static picocli.CommandLine.ExitCode;
 import static picocli.CommandLine.Option;
+
+import java.nio.file.Paths;
+import java.util.concurrent.Callable;
+import java.util.concurrent.Semaphore;
+
+import org.slf4j.LoggerFactory;
 
 @Command(name = "pcfg_cache_server")
 public class CacheServerCli implements Callable<Integer> {
@@ -34,14 +35,18 @@ public class CacheServerCli implements Callable<Integer> {
             System.setProperty("LOG_DIRECTORY_PATH", logPath);
         }
 
-        try (final CheckpointCacheServer server = CheckpointCacheServer.start(port, Paths.get(cachePath), newFixedThreadPool(threadCount));
-             final Scanner scanner = new Scanner(System.in)) {
-            System.out.println("Stop server by typing 'exit'");
-            while (!scanner.nextLine().equals("exit")) {
-                // wait for exit command
-            }
+        try (final CheckpointCacheServer server = CheckpointCacheServer.start(port, Paths.get(cachePath), newFixedThreadPool(threadCount))) {
+            System.out.println("Server started...");
+
+            // let's just block the main thread (perhaps it would be nicer to let the main thread
+            // finish and instead make the worker threads non-daemon, something to look at...)
+            final Semaphore semaphore = new Semaphore(0);
+            semaphore.acquire();
+
+            // should never be reached
             return ExitCode.OK;
-        } catch (final Throwable t) {
+        }
+        catch (final Throwable t) {
             LoggerFactory.getLogger(CacheServerCli.class).error("Fatal error", t);
             return ExitCode.SOFTWARE;
         }
