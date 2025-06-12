@@ -1,5 +1,18 @@
-About
+Table of Contents
 -
+- [About](#about)
+- [Requirements](#requirements)
+- [Using standalone](#using-standalone)
+  - [Build](#build)
+  - [Run](#run)
+  - [Test](#test)
+- [Using on Hashtopolis](#using-on-hashtopolis)
+  - [Build and add the preprocessor](#build-and-add-the-preprocessor)
+  - [Upload a PCFG rule](#upload-a-pcfg-rule)
+  - [Running a true probability order attack](#running-a-true-probability-order-attack)
+- [Important notes](#important-notes)
+
+## About 
 Java implementation of the [PCFG password guesser](https://github.com/lakiw/pcfg_cracker).
 
 Only implements the guessing part. Training should still be done with the python trainer,
@@ -30,8 +43,7 @@ state and use it as a starting point, which will most likely be closer to the st
 this state should be shared between nodes, so that new nodes which get assigned to a task in a later point in time,
 can also make use of this cached information. See later on for more information.
 
-Requirements
--
+## Requirements
 Requirements for executing:
 * JRE >= 23 (Java runtime)
 
@@ -39,8 +51,9 @@ Requirements for development:
 * JDK >= 23 (Java development kit)
 * Maven (tested with 3.6.3)
 
-Build
--
+## Using standalone
+
+### Build
 Building executable jars for the guesser and grammar serializer:
 ```shell
 mvn clean package -DskipTests
@@ -53,8 +66,7 @@ target/serializer-{version}.jar
 target/cache-server-{version}.jar
 ```
 
-Run
--
+### Run
 Executing the guesser:
 ```
 java -jar target/guesser-{version}.jar
@@ -113,20 +125,18 @@ Usage: pcfg_cache_server --cache_directory_path=<cachePath>
       --rpc_thread_count=<threadCount>
                       Use <count> threads for processing client requests
 ```
-Test
--
+### Test
 Testing with maven:
 ```shell
 mvn clean test
 ```
 
-Use on Hashtopolis
--
+## Using on Hashtopolis
 Using it on Hashtopolis requires two things: adding a guesser instance as a preprocessor, and
 uploading a ruleset to crack with. When running an attack, some care must be taken about which
 options to use. See below for more information.
 
-**Build and add the preprocesor:**
+### Build and add the preprocessor
 
 Will be automated at some point. For now, some manual actions have to be taken when you want to deploy a
 custom guesser. 
@@ -164,7 +174,7 @@ Finally, add a new preprocessor in Hashtopolis by going to *Config > Preprocesso
   * `--skip`
   * `--limit`
 
-**Add PCFG rule:**
+### Upload a PCFG rule
 
 The best way is to use the serializer to generate a binary version of the trained rule, before uploading
 it to Hashtopolis.
@@ -179,7 +189,7 @@ java -jar target/serializer-{version}.jar --input {rule_directory_path} --output
 ```
 This file can be uploaded to Hashtopolis using the standard means.
 
-**Running a true probability order attack:**
+### Running a true probability order attack
 
 Start by creating a new task using *Tasks > New Task*. Add the uploaded binary rule
 as a preprocessor file by checking the checkbox in the P column in front of it.
@@ -196,7 +206,7 @@ and to allow Hashtopolis progress reporting to work when the real keyspace would
 same number you would pass to *limit* when using python PCFG
 * `--log_directory_path`: directory where the guesser will store its log files (can be used by multiple nodes if put on a shared filesystem)
 * `--max_heap`: max heap memory used by the Java runtime (same as the Xmx parameter passed to the java process)
-* `--producer_thread_count`: number of password generating threads to use (not total amount of process threads)
+* `--producer_thread_count`: number of password generating threads to use (not total amount of process threads); **note** that using a lot of threads will lead to diminishing returns, around 4 seems to be a good default
 
 **!! Note** that this setup does not keep track of earlier states, or shares state between Hashtopolis nodes. This means each chunk will make the guesser start skipping from keyspace position 0.
 In order to make use of state sharing (highly recommended), there are two mutually exclusive options to use:
@@ -228,7 +238,8 @@ It may be necessary to extend the Hashcat timeout abort in case a rule takes a w
 configured by adding e.g. `--stdin-timeout-abort=3600` to *Attack command*, which increases the time
 to 1 hour (from the default 5 minutes). It can also be disabled instead by setting it to `0`, but this is not advised.
 
-## Important
+## Important notes
 
-1) Try to configure chunk sizes which are not too small (e.g. 1 hour), especially when you share the cached state between checkpoints. Else, the state sharing might become too large of a overhead.
-2) The `--max_heap` also influences the possible size of the output cache state. If this state would be shared between nodes, you should limit the heap size to that of the node with the lowest amount of resources.
+1) Try to configure chunk sizes which are not too small (e.g. 1 hour), especially when you share the cached state between checkpoints. Else, the state sharing might become too much of a overhead.
+2) It is not useful to make `--producer_thread_count` as large as possible when using true probability order. This because it is not possible to perfectly parallelize the algorithm, so you will get diminishing returns. Around 4 threads seems to be a good default. 
+3) The `--max_heap` also influences the possible size of the output cache state. If this state would be shared between nodes, you should limit the heap size to that of the node with the lowest amount of resources.
