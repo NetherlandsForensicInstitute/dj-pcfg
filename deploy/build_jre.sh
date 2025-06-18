@@ -16,4 +16,4 @@ jdk-23/bin/jlink --output jre-23 --compress zip-9 --no-header-files --no-man-pag
 chmod -R +w jdk-23
 cp -r jre-23 pcfg_preprocessor-$version
 cp -r jre-23 cache_server-$version
-rm -r graalvm-jdk-23_linux-x64_bin.tar.gz jdk-23 jre-23
+rm -fr graalvm-jdk-23_linux-x64_bin.tar.gz jdk-23/ jre-23/
