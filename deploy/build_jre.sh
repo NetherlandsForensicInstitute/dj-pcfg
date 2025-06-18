@@ -6,7 +6,7 @@ then
 	exit 1
 fi
 
-version=$(echo -n dj-pcfg-0.5.1.jar | grep -oE "[0-9]+\.[0-9]+\.[0-9]+")
+version=$(ls ../target/dj-pcfg-*.jar | grep -oE "[0-9]+\.[0-9]+\.[0-9]+")
 mkdir pcfg_preprocessor-$version
 mkdir cache_server-$version
 wget https://download.oracle.com/graalvm/23/latest/graalvm-jdk-23_linux-x64_bin.tar.gz
