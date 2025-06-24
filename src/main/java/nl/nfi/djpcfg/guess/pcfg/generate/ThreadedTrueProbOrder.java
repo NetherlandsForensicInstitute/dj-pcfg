@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.PrintStream;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -16,10 +17,13 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 
+import static java.lang.Long.compareUnsigned;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static java.util.Collections.emptyList;
+import static java.util.stream.LongStream.iterate;
 
 // experimental
 public final class ThreadedTrueProbOrder implements PasswordGenerator {
@@ -57,14 +61,9 @@ public final class ThreadedTrueProbOrder implements PasswordGenerator {
         final int numPossibleThreads = max(1, min(numProcessors - 1, maxProducerThreads));
         final int numProducerThreads = numPossibleThreads > limit ? (int) limit : numPossibleThreads;
 
-        final List<ProgressState> states = generateChunks(skip, limit);
+        final Iterator<ProgressState> workItems = streamChunks(skip, limit).iterator();
 
         try (final ExecutorService executorService = Executors.newFixedThreadPool(numProducerThreads)) {
-            final BlockingQueue<ProgressState> workItems = new ArrayBlockingQueue<>(states.size() + numProducerThreads, false, states);
-            for (int i = 0; i < numProducerThreads; i++) {
-                workItems.add(new ProgressState());
-            }
-
             final BlockingQueue<List<String>> passwordBatches = new ArrayBlockingQueue<>(numProducerThreads * 4);
             final AtomicReference<Checkpoint> checkpoint = new AtomicReference<>(state);
             // make free for garbage collection when the atomic reference above is changed
@@ -85,10 +84,13 @@ public final class ThreadedTrueProbOrder implements PasswordGenerator {
                         LOG.debug("Starting producer thread with id [{}]", threadId);
 
                         while (true) {
-                            final ProgressState workItem = workItems.poll();
-                            if (workItem.limit == 0) {
-                                passwordBatches.put(emptyList());
-                                return;
+                            final ProgressState workItem;
+                            synchronized (workItems) {
+                                if (!workItems.hasNext()) {
+                                    passwordBatches.put(emptyList());
+                                    return;
+                                }
+                                workItem = workItems.next();
                             }
 
                             try (final PrintStream out = new CapturingOutputStream(batch -> {
@@ -145,17 +147,13 @@ public final class ThreadedTrueProbOrder implements PasswordGenerator {
         }
     }
 
-    // TODO: can cause heap space error, e.g. skip 0, limit = Long.MAX_VALUE, take a look at ThreadedRandomWalk
-    private static List<ProgressState> generateChunks(final long skip, final long limit) {
-        final List<ProgressState> states = new ArrayList<>();
-        long remaining = limit;
-        while (remaining > 0) {
-            final ProgressState progress = new ProgressState();
-            progress.skip = skip + limit - remaining;
-            progress.limit = min(SPLIT_SIZE, remaining);
-            remaining -= progress.limit;
-            states.add(progress);
-        }
-        return states;
+    private static Stream<ProgressState> streamChunks(final long skip, final long limit) {
+        return iterate(skip, toSkip -> compareUnsigned(toSkip, skip + limit) < 0, toSkip -> toSkip + SPLIT_SIZE)
+            .mapToObj(toSkip -> {
+                final ProgressState progress = new ProgressState();
+                progress.skip = toSkip;
+                progress.limit = min(SPLIT_SIZE, skip + limit - toSkip);
+                return progress;
+            });
     }
 }
