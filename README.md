@@ -148,16 +148,14 @@ the `deploy/pcfg_preprocessor-{version}/pcfg_preprocessor64.bin` shell script to
 Create new guesser:
 ```shell
 mvn clean package -DskipTests
-mv target/guesser-{version}.jar deploy/pcfg_preprocessor-{version}/guesser.jar
+./deploy/build_jre.sh
 ```
 Test if it works locally:
 ```shell
 cd deploy
-# if not yet present, download and build a jre, e.g. using the following script
-# ./build_jre.sh
 pcfg_preprocessor-{version}/pcfg_preprocessor64.bin pcfg_preprocessor-{version}/guesser.jar
 ```
-Build preprocessor:
+Compress the preprocessor:
 ```shell
 7z a pcfg_preprocessor-{version}.7z pcfg_preprocessor-{version}
 ```
