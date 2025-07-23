@@ -10,6 +10,8 @@ from uuid import uuid4
 
 from tqdm import tqdm
 
+max_int = (1 << 32) - 1
+
 
 def read_grammar_rules(file_path):
     with open(file_path, 'r') as lines:
@@ -54,11 +56,7 @@ def merge_nearest(probabilities, num_bins, max_delta):
         deltas.append([ddelta(merged[idx][0], merged[idx + 1][0]), idx])
     deltas.sort(key=lambda entry: entry[0])
 
-    while True:
-        if num_bins != max_int:
-            if len(merged) > num_bins:
-                break
-
+    while len(merged) > 1:
         next_delta, next_idx = deltas[0]
         if num_bins != max_int:
             if len(merged) <= num_bins:
@@ -142,8 +140,6 @@ def generated_password_length(base_struct):
 
 if __name__ == '__main__':
     args = ArgumentParser()
-
-    max_int = (1 << 32) - 1
 
     args.add_argument('input', help='')
     args.add_argument('output', help='')
