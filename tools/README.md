@@ -1,6 +1,6 @@
 About
 -
-Collection of hacked together tools (1 at the moment) for [PCFG](https://github.com/lakiw/pcfg_cracker).
+Collection of hacked together tools for [PCFG](https://github.com/lakiw/pcfg_cracker).
 
 Requirements
 -
