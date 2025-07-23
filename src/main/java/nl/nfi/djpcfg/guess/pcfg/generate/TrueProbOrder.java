@@ -1,5 +1,6 @@
 package nl.nfi.djpcfg.guess.pcfg.generate;
 
+import static java.util.Comparator.reverseOrder;
 import static java.util.Map.Entry.comparingByValue;
 import static java.util.stream.Collectors.joining;
 
@@ -56,9 +57,8 @@ public final class TrueProbOrder implements PasswordGenerator {
         // region Debugging
         final long dbgStartTimeOfSkip = System.nanoTime();
 
-        long dbgSkipTimeSinceLogCount = dbgStartTimeOfSkip;
-        long dbgSkippedSinceLogCount = 0;
-        long dbgTerminalBatchOfSize1Count = 0;
+        long dbgSkipTimeSinceLog = dbgStartTimeOfSkip;
+        long dbgSkippedSinceLog = 0;
         final Map<List<String>, Integer> dbgSingleTerminalParents = new IdentityHashMap<>();
         // endregion
 
@@ -70,42 +70,15 @@ public final class TrueProbOrder implements PasswordGenerator {
             remainingToSkip -= terminalCount;
 
             // region Debugging
-            dbgSkippedSinceLogCount += terminalCount;
+            dbgSkippedSinceLog += terminalCount;
             if (terminalCount == 1) {
-                dbgTerminalBatchOfSize1Count++;
                 dbgSingleTerminalParents.merge(next.replacementSet().variables(), 1, Integer::sum);
             }
 
-            if (dbgSkippedSinceLogCount >= SKIP_COUNT_BEFORE_LOG) {
-                final long skipped = skip - remainingToSkip;
-                final long timeTaken = System.nanoTime() - dbgStartTimeOfSkip;
-
-                LOG.debug(
-                    "Skipped {} in: {}, " +
-                        "num single terminals: {} ({}%), " +
-                        "total skipped: {} ({}%), " +
-                        "time taken: {}, " +
-                        "estimated total time: {}",
-                    dbgSkippedSinceLogCount,
-                    Duration.ofNanos(System.nanoTime() - dbgSkipTimeSinceLogCount),
-                    dbgTerminalBatchOfSize1Count,
-                    String.format("%.2f", (dbgTerminalBatchOfSize1Count * 100.0d / skipped)),
-                    skipped,
-                    String.format("%.2f", skipped * 100.0d / skip),
-                    Duration.ofNanos(timeTaken),
-                    Duration.ofNanos((long) ((timeTaken) / (skipped * 1.0d / skip)))
-                );
-                dbgSkipTimeSinceLogCount = System.nanoTime();
-                dbgSkippedSinceLogCount = 0;
-
-                final Function<List<String>, String> formatVariables = variables -> variables.stream()
-                    .filter(variable -> !variable.contains("C"))
-                    .collect(joining());
-
-                LOG.debug(dbgSingleTerminalParents.entrySet().stream()
-                    .sorted(comparingByValue())
-                    .map(e -> "%s: %d".formatted(formatVariables.apply(e.getKey()), e.getValue()))
-                    .collect(joining("\n", "\n", "\n")));
+            if (dbgSkippedSinceLog >= SKIP_COUNT_BEFORE_LOG) {
+                logStatistics(skip, remainingToSkip, dbgSkippedSinceLog, dbgStartTimeOfSkip, dbgSkipTimeSinceLog, dbgSingleTerminalParents);
+                dbgSkipTimeSinceLog = System.nanoTime();
+                dbgSkippedSinceLog = 0;
             }
             // endregion
 
@@ -142,4 +115,44 @@ public final class TrueProbOrder implements PasswordGenerator {
             next = queue.next();
         }
     }
+
+    // region Debugging
+    private static void logStatistics(
+        final long toSkip, final long remainingToSkip, final long skippedSinceLog,
+        final long startTimeOfSkip, final long skipTimeSinceLog,
+        final Map<List<String>, Integer> singleTerminalParents
+    ) {
+        final long skipped = toSkip - remainingToSkip;
+        final long timeTaken = System.nanoTime() - startTimeOfSkip;
+        final long terminalBatchOfSize1Count = singleTerminalParents.values().stream()
+            .mapToLong(value -> value)
+            .sum();
+
+        LOG.debug(
+            "Skipped {} in: {}, " +
+                "num single terminals: {} ({}%), " +
+                "total skipped: {} ({}%), " +
+                "time taken: {}, " +
+                "estimated total time: {}",
+            skippedSinceLog,
+            Duration.ofNanos(System.nanoTime() - skipTimeSinceLog),
+            terminalBatchOfSize1Count,
+            String.format("%.2f", (terminalBatchOfSize1Count * 100.0d / skipped)),
+            skipped,
+            String.format("%.2f", skipped * 100.0d / toSkip),
+            Duration.ofNanos(timeTaken),
+            Duration.ofNanos((long) ((timeTaken) / (skipped * 1.0d / toSkip)))
+        );
+
+        final Function<List<String>, String> formatVariables = variables -> variables.stream()
+            .filter(variable -> !variable.contains("C"))
+            .collect(joining());
+
+        LOG.debug(singleTerminalParents.entrySet().stream()
+            .sorted(comparingByValue(reverseOrder()))
+            .limit(64)
+            .map(e -> "%s: %d".formatted(formatVariables.apply(e.getKey()), e.getValue()))
+            .collect(joining("\n", "Statistics:\nBase structures and their number of generated terminal sets of size 1:\n", "\n...\n")));
+    }
+    // endregion
 }
