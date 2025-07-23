@@ -28,10 +28,10 @@ public final class RunGuesserOnRule {
 
         final PcfgGuesser guesser = PcfgGuesser.forRule(pcfg)
             .mode(TRUE_PROB_ORDER)
-            .threadCount(4);
+            .threadCount(2);
 
-        final int skip = 128;
-        final int limit = 8;
+        final long skip = 128L;
+        final long limit = 8L;
         final PrintStream output = System.out;
 
         guesser.generateGuesses(skip, limit, output);

@@ -61,7 +61,10 @@ class DistributedCacheTest {
         // System.setProperty("LOG_DIRECTORY_PATH", "/tmp/test-logs");
 
         if (!isRegularFile(LARGE_CHECKPOINT_PATH)) {
-            System.out.println("Generating large rule file...");
+            System.out.println("==================================================================================");
+            System.out.println("|       Generating large test checkpoint, can take up to 15 minutes!             |");
+            System.out.println("|       One time only, successive test runs will reuse the generated file!       |");
+            System.out.println("==================================================================================");
             final Pcfg pcfg = Pcfg.loadFrom(DEFAULT_RULE_PATH);
             final Checkpoint checkpoint = generateCheckpoint(pcfg, 10000000000L, 1);
             try (final CheckpointCodec.Encoder encoder = CheckpointCodec.forOutput(LARGE_CHECKPOINT_PATH)) {
