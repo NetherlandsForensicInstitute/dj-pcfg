@@ -29,8 +29,13 @@ invalid passwords for a given target, among other things.
 
 Example usage:
 ```shell
-$ python modify_pcfg_rule.py -b 32 -m 0.01 -p 32 -g 12 --remove-base-structure-if "'A' not in base_structure" Default DefaultModified
+$ python modify_pcfg_rule.py -m 0.1 -p 32 -g 12 --include-casing-in-grammar-length --remove-base-structure-if 'all(c in "D01234567890" for c in base_structure)' Default DefaultModified
 ```
+
+This does a couple of things:
+- Remove all password patterns consisting of only digits (which will probably have been tried already with other attacks)
+- Combine terminal groups with relatively close probabilities: this improves generation performance, while keeping all generated passwords and without losing much ordering quality
+- Remove long grammars and grammars which generate long passwords (longer than 32): this improves generation performance as well
 
 TODO
 -
