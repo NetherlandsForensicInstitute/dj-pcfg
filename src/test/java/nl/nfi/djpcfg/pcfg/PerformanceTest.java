@@ -1,22 +1,24 @@
 package nl.nfi.djpcfg.pcfg;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
+import static nl.nfi.djpcfg.Utils.CountingPrintStream;
+import static nl.nfi.djpcfg.common.Timers.time;
+
+import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.List;
+
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
+
 import nl.nfi.djpcfg.common.Timers.TimedResult;
 import nl.nfi.djpcfg.guess.pcfg.Pcfg;
 import nl.nfi.djpcfg.guess.pcfg.PcfgGuesser;
 import nl.nfi.djpcfg.guess.pcfg.generate.PasswordGenerator;
 import nl.nfi.djpcfg.guess.pcfg.generate.ThreadedRandomWalk;
 import nl.nfi.djpcfg.serialize.PcfgCodec;
-import org.junit.jupiter.api.Disabled;
-import org.junit.jupiter.api.Test;
-
-import java.io.IOException;
-import java.io.PrintStream;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.List;
-
-import static nl.nfi.djpcfg.common.Timers.time;
-import static org.assertj.core.api.Assertions.assertThat;
 
 class PerformanceTest {
 
@@ -112,23 +114,5 @@ class PerformanceTest {
         // ns: 4610048757
         // ms: 4610
         //  s: 4
-    }
-
-    private static class CountingPrintStream extends PrintStream {
-
-        private int count = 0;
-
-        public CountingPrintStream() {
-            super(nullOutputStream());
-        }
-
-        public int count() {
-            return count;
-        }
-
-        @Override
-        public void println(final String s) {
-            count++;
-        }
     }
 }
