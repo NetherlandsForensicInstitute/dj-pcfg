@@ -10,8 +10,7 @@ from uuid import uuid4
 
 from tqdm import tqdm
 
-max_int = (1 << 32) - 1
-
+PCFG_SPLIT_REGEX = r'(?<=\d)(?=\D)|(?<=\D)(?=\d)'
 
 def read_grammar_rules(file_path):
     with open(file_path, 'r') as lines:
@@ -110,8 +109,10 @@ def merge_nearest(probabilities, num_bins, max_delta):
 #                          but it will be extended by a casing variable C for each alpha A
 #                          (so under the hood looks like A1C1D1A1C1)
 def num_variables_in_base_struct(base_struct, include_extension=False):
-    variables = re.split(r'(?<=\d|\D)(?=\D)', base_struct)
-
+    try:
+        variables = re.split(PCFG_SPLIT_REGEX, base_struct)
+    except ValueError as e:
+        return 1 # if patter doesnt match, only single variable exists
     num_variables = len(variables)
     if include_extension:
         num_variables += sum(1 for variable in variables if variable.startswith('A'))
@@ -120,22 +121,31 @@ def num_variables_in_base_struct(base_struct, include_extension=False):
 
 
 def size_largest_variable(base_struct):
-    variables = re.split(r'(?<=\d|\D)(?=\D)', base_struct)
+    try:
+        variables = re.split(PCFG_SPLIT_REGEX, base_struct)
+    except ValueError as e:
+        variables = [base_struct]
     variables = [variable for variable in variables if len(variable) > 1]  # filter e.g. E
 
-    if not variables:
+    sizes = [int(variable[1:]) for variable in variables if variable[1:].isdigit()]
+    if len(sizes) > 0:
+        return max(sizes)
+    else:
         return 0
-
-    return max(int(variable[1:]) for variable in variables)
 
 
 def generated_password_length(base_struct):
-    variables = re.split(r'(?<=\d|\D)(?=\D)', base_struct)
-    variables = [variable for variable in variables if len(variable) > 1]
-    # others can be variable length, but taking at least as 1 is sane
-    # variables = [variable for variable in variables if variable[0] in 'ADOK']
+    try:
+        variables = re.split(PCFG_SPLIT_REGEX, base_struct)
+    except ValueError as e:
+        variables = [base_struct]
 
-    return sum(int(variable[1:]) for variable in variables)
+    variables = [variable for variable in variables if len(variable) > 1]
+    sizes = [int(variable[1:]) for variable in variables if variable[1:].isdigit()]
+    if len(sizes) > 0:
+        return max(sizes)
+    else:
+        return 0
 
 
 if __name__ == '__main__':
